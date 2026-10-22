@@ -33,7 +33,11 @@ cd "$SRC"
 export CC=gcc CXX=g++
 # --no-lrdf: liblrdf (LADSPA metadata only) is not packaged for MSYS2.
 # suil is not packaged either, but Ardour bundles it (libs/tk/suil).
-python3 ./waf configure --dist-target=mingw --optimize --no-phone-home --no-lrdf \
+if ! python3 ./waf configure --dist-target=mingw --optimize --no-phone-home --no-lrdf \
 	--with-backends=dummy,portaudio \
-	--prefix="$MINGW_PREFIX" --libdir="$MINGW_PREFIX/lib"
+	--prefix="$MINGW_PREFIX" --libdir="$MINGW_PREFIX/lib"; then
+	echo "---- tail of build/config.log"
+	tail -n 80 build/config.log
+	exit 1
+fi
 python3 ./waf build -j"$(nproc)"
