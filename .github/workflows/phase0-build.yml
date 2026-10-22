@@ -1,0 +1,61 @@
+name: Phase 0 build spike
+
+# Builds upstream Ardour at the tag in ci/ardour-ref on Linux and Windows.
+# Runs on changes to CI files only, and on manual dispatch.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/phase0-build.yml"
+      - "ci/**"
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch Ardour
+        run: git clone --depth 1 --branch "$(cat ci/ardour-ref)" https://github.com/Ardour/ardour.git ardour
+      - name: Build
+        run: bash ci/linux-build.sh ardour
+      - name: Unit tests
+        continue-on-error: true
+        run: |
+          cd ardour
+          for t in libs/pbd libs/evoral libs/midi++2 libs/audiographer libs/ardour; do
+            echo "::group::$t"; (cd "$t" && ./run-tests.sh) ; echo "exit $?"; echo "::endgroup::"
+          done 2>&1 | tee ../linux-tests.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-logs
+          path: linux-tests.log
+          if-no-files-found: ignore
+
+  windows-msys2:
+    runs-on: windows-2022
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: git base-devel
+      - name: Fetch Ardour
+        run: git clone --depth 1 --branch "$(cat ci/ardour-ref)" https://github.com/Ardour/ardour.git ardour
+      - name: Build
+        run: bash ci/windows-msys2-build.sh ardour 2>&1 | tee windows-build.log; exit ${PIPESTATUS[0]}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-logs
+          path: |
+            windows-build.log
+            msys2-missing.txt
+            ardour/build/config.log
+          if-no-files-found: ignore

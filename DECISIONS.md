@@ -1,0 +1,14 @@
+# Decisions
+
+Each entry records a choice the brief left open, why it was made, and whether the user still has to confirm it.
+The rule from the brief applies: when a requirement is ambiguous, pick the option closest to the Korg Sound On Sound workflow.
+
+| # | Date | Decision | Why | Status |
+|---|---|---|---|---|
+| D-001 | 2026-10-22 | **Base on Ardour 9.8, not 9.7.** | 9.8 (tag `9.8`, commit `22ed8656`, 2026-08-19) is the latest stable release and came out after the brief's comparison. The brief says to rebase on Ardour releases anyway, so starting on the newest one saves a rebase. Nothing in the brief depends on 9.7 specifically. | Proposed |
+| D-002 | 2026-10-22 | **Option A (Ardour fork) confirmed.** | Phase 0 found no blocker that would make ARA2 in Ardour infeasible within 3 months (see `PHASE0.md` §3). Ardour 9's per-region plugin chain (*Region FX*) is a close match to ARA's playback-region model. | Proposed, awaiting user |
+| D-003 | 2026-10-22 | **Build with `--no-phone-home`.** | Stock Ardour's configure enables "Phone home" (the update/announcement check in `gtk2_ardour/pingback.cc`). The brief forbids telemetry. | Decided (hard rule §7) |
+| D-004 | 2026-10-22 | **Brand with `--program-name`.** Ardour's build already takes a program name. The product name itself is still open (brief §9 Q1). | This keeps branding an option on the build command rather than a patch, which is easier to upstream and to rebase. | Mechanism decided; name open |
+| D-005 | 2026-10-22 | **ARA code is a separate, optional build feature (`--ara`), and binaries that include it are distributed under GPLv3.** | The ARA SDK is Apache-2.0. Apache-2.0 is compatible with GPLv3 but not with GPLv2. Ardour is "GPLv2 or later", so a binary that links the ARA SDK can only be distributed under GPLv3. Our new code stays GPLv2-or-later, as the brief asks. | **Needs user confirmation** (brief §8: licence unclear → ask) |
+| D-006 | 2026-10-22 | **Repository layout (proposed for WP1):** import Ardour's full history into this repository, with upstream `9.8` as the base. Our work goes on topic branches, one per WP, and is rebased onto each new Ardour release. Planning documents stay at the top level. | Full history makes rebasing and upstream patches (`git format-patch`) easy. A vendored tarball would lose that. | Proposed, awaiting user |
+| D-007 | 2026-10-22 | **The Windows build uses Ardour's official MinGW cross-build tooling, with an MSYS2-native build on CI as a fallback.** | The official tooling (`ardour-build-tools/win/x-mingw.sh`) lives on `git.ardour.org`, which this cloud environment's network policy blocks. A GitHub Actions Windows runner with MSYS2 can download the dependencies. | Proposed; see `PHASE0.md` §2.2 |
