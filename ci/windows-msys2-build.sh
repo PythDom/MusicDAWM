@@ -29,13 +29,15 @@ echo "toolchain: CC=$(command -v gcc || echo none) PY=$(command -v python3 || ec
 gcc --version | head -1
 python3 -c 'import sys; print("python", sys.version.split()[0], sys.platform, sys.executable)'
 cd "$SRC"
-# waf would otherwise pick up MSVC from the runner image. Under a native
-# Windows Python it needs full Windows paths ("gcc" alone is "not executable").
+# waf would otherwise try MSVC from the runner image first (hence also the
+# --check-c*-compiler options). Under a native Windows Python it needs full
+# Windows paths ("gcc" alone is "not executable").
 export CC="$(cygpath -m "$(command -v gcc).exe")" CXX="$(cygpath -m "$(command -v g++).exe")"
 echo "CC=$CC CXX=$CXX"
 # --no-lrdf: liblrdf (LADSPA metadata only) is not packaged for MSYS2.
 # suil is not packaged either, but Ardour bundles it (libs/tk/suil).
-if ! python3 ./waf configure --dist-target=mingw --optimize --no-phone-home --no-lrdf \
+if ! python3 ./waf configure --check-c-compiler=gcc --check-cxx-compiler=g++ \
+	--dist-target=mingw --optimize --no-phone-home --no-lrdf \
 	--with-backends=dummy,portaudio \
 	--prefix="$MINGW_PREFIX" --libdir="$MINGW_PREFIX/lib"; then
 	echo "---- tail of build/config.log"

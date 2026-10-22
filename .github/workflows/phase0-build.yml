@@ -9,6 +9,10 @@ on:
       - ".github/workflows/phase0-build.yml"
       - "ci/**"
 
+concurrency:
+  group: phase0-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   linux:
     runs-on: ubuntu-24.04
@@ -18,15 +22,12 @@ jobs:
       - name: Fetch Ardour
         run: git clone --depth 1 --branch "$(cat ci/ardour-ref)" https://github.com/Ardour/ardour.git ardour
       - name: Build
+        id: build
         run: bash ci/linux-build.sh ardour
       - name: Unit tests
-        continue-on-error: true
-        run: |
-          cd ardour
-          for t in libs/pbd libs/evoral libs/midi++2 libs/audiographer libs/ardour; do
-            echo "::group::$t"; (cd "$t" && ./run-tests.sh) ; echo "exit $?"; echo "::endgroup::"
-          done 2>&1 | tee ../linux-tests.log
+        run: bash ci/linux-tests.sh ardour 2>&1 | tee linux-tests.log; exit ${PIPESTATUS[0]}
       - name: Mother smoke test
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           python3 tools/mother-smoke/make_wavs.py "$RUNNER_TEMP/wavs"
           cd ardour
