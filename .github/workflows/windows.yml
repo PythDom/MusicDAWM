@@ -1,0 +1,42 @@
+name: Windows build
+
+# Phase 0 spike: native MSYS2 (UCRT64) build of Ardour on a Windows runner. See PHASE0.md section 2.2.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/windows.yml"
+      - "ci/ardour-ref"
+      - "ci/windows-*.sh"
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-msys2:
+    runs-on: windows-2022
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: git base-devel
+      - name: Fetch Ardour
+        run: git clone --depth 1 --branch "$(cat ci/ardour-ref)" https://github.com/Ardour/ardour.git ardour
+      - name: Build
+        run: bash ci/windows-msys2-build.sh ardour 2>&1 | tee windows-build.log; exit ${PIPESTATUS[0]}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-logs
+          path: |
+            windows-build.log
+            msys2-missing.txt
+            ardour/build/config.log
+          if-no-files-found: ignore
