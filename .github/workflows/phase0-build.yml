@@ -26,6 +26,14 @@ jobs:
           for t in libs/pbd libs/evoral libs/midi++2 libs/audiographer libs/ardour; do
             echo "::group::$t"; (cd "$t" && ./run-tests.sh) ; echo "exit $?"; echo "::endgroup::"
           done 2>&1 | tee ../linux-tests.log
+      - name: Mother smoke test
+        run: |
+          python3 tools/mother-smoke/make_wavs.py "$RUNNER_TEMP/wavs"
+          cd ardour
+          export TOP="$PWD"; . build/gtk2_ardour/ardev_common_waf.sh
+          build/session_utils/ardour9-mother_smoke "$RUNNER_TEMP/mother" "$RUNNER_TEMP"/wavs/*.wav
+          build/session_utils/ardour9-export -o "$RUNNER_TEMP/mother-mix.wav" "$RUNNER_TEMP/mother" Mother
+          python3 -c "import wave,sys; w=wave.open(sys.argv[1]); n=w.getnframes()/w.getframerate(); print('export', n, 's'); sys.exit(abs(n-343) > 0.01)" "$RUNNER_TEMP/mother-mix.wav"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

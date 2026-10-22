@@ -1,9 +1,11 @@
 #!/bin/bash
 # Phase 0: build upstream Ardour on Ubuntu 24.04 and run its unit tests.
+# Applies our upstream-candidate patches and adds the Mother smoke test tool.
 # Usage: ci/linux-build.sh <ardour-src-dir>
 set -euo pipefail
 
 SRC=${1:?ardour source dir}
+HERE=$(cd "$(dirname "$0")/.." && pwd)
 
 sudo apt-get update -qq
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
@@ -14,9 +16,15 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
 	libserd-dev libsord-dev libsratom-dev liblilv-dev libsuil-dev \
 	libcairomm-1.0-dev libpangomm-1.4-dev libwebsockets-dev libxml2-dev \
 	libcppunit-dev libreadline-dev libgtk2.0-dev libudev-dev libdbus-1-dev \
-	libopus-dev libogg-dev libflac-dev libvorbis-dev itstool gettext
+	libopus-dev libogg-dev libflac-dev libvorbis-dev itstool gettext \
+	python3-numpy
 
 cd "$SRC"
+for p in "$HERE"/patches/upstream/*.patch; do
+	git apply --verbose "$p"
+done
+cp "$HERE/tools/mother-smoke/mother_smoke.cc" session_utils/
+
 ./waf configure --optimize --no-phone-home --test \
 	--with-backends=jack,alsa,pulseaudio,dummy
 ./waf build -j"$(nproc)"

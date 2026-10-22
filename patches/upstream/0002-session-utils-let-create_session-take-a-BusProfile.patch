@@ -1,0 +1,52 @@
+From 62d41731daf8dee107449126dcb756e9d2b803f9 Mon Sep 17 00:00:00 2001
+From: MusicDAWM <skycom@randdom.org>
+Date: Thu, 22 Oct 2026 23:06:32 +0000
+Subject: [PATCH 2/2] session-utils: let create_session() take a BusProfile
+
+So that command-line tools can create sessions with a master bus.
+---
+ session_utils/common.cc | 4 ++--
+ session_utils/common.h  | 3 ++-
+ 2 files changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/session_utils/common.cc b/session_utils/common.cc
+index f3f8623..ae1473f 100644
+--- a/session_utils/common.cc
++++ b/session_utils/common.cc
+@@ -205,7 +205,7 @@ SessionUtils::load_session (string dir, string state, bool exit_at_failure)
+ }
+ 
+ Session *
+-SessionUtils::create_session (string dir, string state, float sample_rate)
++SessionUtils::create_session (string dir, string state, float sample_rate, BusProfile const* bus_profile)
+ {
+ 	AudioEngine* engine = AudioEngine::create ();
+ 
+@@ -234,7 +234,7 @@ SessionUtils::create_session (string dir, string state, float sample_rate)
+ 		return 0;
+ 	}
+ 
+-	Session* session = new Session (*engine, dir, state);
++	Session* session = new Session (*engine, dir, state, bus_profile);
+ 	engine->set_session (session);
+ 	return session;
+ }
+diff --git a/session_utils/common.h b/session_utils/common.h
+index fee60a4..e24290f 100644
+--- a/session_utils/common.h
++++ b/session_utils/common.h
+@@ -40,9 +40,10 @@ namespace SessionUtils {
+ 
+ 	/** @param dir Session directory.
+ 	 *  @param state Session state file, without .ardour suffix.
++	 *  @param bus_profile master bus setup, or NULL for a session without master bus.
+ 	 *  @returns an ardour session object (free with \ref unload_session) or NULL on error
+ 	 */
+-	ARDOUR::Session* create_session (std::string dir, std::string state, float sample_rate);
++	ARDOUR::Session* create_session (std::string dir, std::string state, float sample_rate, ARDOUR::BusProfile const* bus_profile = NULL);
+ 
+ 	/** close session and stop engine
+ 	 * @param s Session to close (may me NULL)
+-- 
+2.43.0
+

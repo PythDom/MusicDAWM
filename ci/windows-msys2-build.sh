@@ -9,8 +9,8 @@ set -uo pipefail
 SRC=${1:?ardour source dir}
 P=${MINGW_PACKAGE_PREFIX:?run inside an MSYS2 UCRT64 or MINGW64 shell}
 
-PKGS="toolchain pkgconf python boost glibmm libsndfile curl libarchive liblo taglib
-vamp-plugin-sdk rubberband fftw aubio libsamplerate lv2 serd sord sratom lilv suil
+PKGS="toolchain gcc pkgconf python boost glibmm libsndfile curl libarchive liblo taglib
+vamp-plugin-sdk rubberband fftw aubio libsamplerate lv2 serd sord sratom lilv
 cairomm pangomm libwebsockets libxml2 cppunit portaudio libusb gtk2 libogg flac
 libvorbis opus soundtouch fontconfig"
 
@@ -25,11 +25,15 @@ done
 echo "MSYS2 packages not available:${missing:- none}" | tee msys2-missing.txt
 
 set -e
+echo "toolchain: CC=$(command -v gcc || echo none) PY=$(command -v python3 || echo none)"
+gcc --version | head -1
+python3 -c 'import sys; print("python", sys.version.split()[0], sys.platform, sys.executable)'
 cd "$SRC"
 # waf would otherwise pick up MSVC from the runner image.
 export CC=gcc CXX=g++
 # --no-lrdf: liblrdf (LADSPA metadata only) is not packaged for MSYS2.
-./waf configure --dist-target=mingw --optimize --no-phone-home --no-lrdf \
+# suil is not packaged either, but Ardour bundles it (libs/tk/suil).
+python3 ./waf configure --dist-target=mingw --optimize --no-phone-home --no-lrdf \
 	--with-backends=dummy,portaudio \
 	--prefix="$MINGW_PREFIX" --libdir="$MINGW_PREFIX/lib"
-./waf build -j"$(nproc)"
+python3 ./waf build -j"$(nproc)"
