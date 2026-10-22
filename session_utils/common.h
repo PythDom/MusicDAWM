@@ -40,9 +40,10 @@ namespace SessionUtils {
 
 	/** @param dir Session directory.
 	 *  @param state Session state file, without .ardour suffix.
+	 *  @param bus_profile master bus setup, or NULL for a session without master bus.
 	 *  @returns an ardour session object (free with \ref unload_session) or NULL on error
 	 */
-	ARDOUR::Session* create_session (std::string dir, std::string state, float sample_rate);
+	ARDOUR::Session* create_session (std::string dir, std::string state, float sample_rate, ARDOUR::BusProfile const* bus_profile = NULL);
 
 	/** close session and stop engine
 	 * @param s Session to close (may me NULL)

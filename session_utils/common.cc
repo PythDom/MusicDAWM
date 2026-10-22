@@ -205,7 +205,7 @@ SessionUtils::load_session (string dir, string state, bool exit_at_failure)
 }
 
 Session *
-SessionUtils::create_session (string dir, string state, float sample_rate)
+SessionUtils::create_session (string dir, string state, float sample_rate, BusProfile const* bus_profile)
 {
 	AudioEngine* engine = AudioEngine::create ();
 
@@ -234,7 +234,7 @@ SessionUtils::create_session (string dir, string state, float sample_rate)
 		return 0;
 	}
 
-	Session* session = new Session (*engine, dir, state);
+	Session* session = new Session (*engine, dir, state, bus_profile);
 	engine->set_session (session);
 	return session;
 }
