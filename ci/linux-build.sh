@@ -5,6 +5,7 @@ set -euo pipefail
 
 SRC=${1:?ardour source dir}
 
+sudo apt-get update -qq
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
 	libboost-dev libglibmm-2.4-dev libsndfile1-dev libcurl4-openssl-dev \
 	libarchive-dev liblo-dev libtag1-dev vamp-plugin-sdk librubberband-dev \
