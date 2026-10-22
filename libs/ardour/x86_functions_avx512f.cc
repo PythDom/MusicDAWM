@@ -290,8 +290,8 @@ x86_avx512f_find_peaks(const float *src, uint32_t nframes, float *minf, float *m
 		if (frames >= 8 && IS_ALIGNED_TO(src, sizeof(__m256))) {
 			__m512 x = _mm512_castps256_ps512(_mm256_load_ps(src));
 
-			zmin = _mm512_min_ps(zmin, x);
-			zmax = _mm512_max_ps(zmax, x);
+			zmin = _mm512_mask_min_ps(zmin, 0x00FF, zmin, x);
+			zmax = _mm512_mask_max_ps(zmax, 0x00FF, zmax, x);
 
 			src += 8;
 			frames -= 8;
@@ -301,8 +301,8 @@ x86_avx512f_find_peaks(const float *src, uint32_t nframes, float *minf, float *m
 		if (frames >= 4 && IS_ALIGNED_TO(src, sizeof(__m128))) {
 			__m512 x = _mm512_castps128_ps512(_mm_load_ps(src));
 
-			zmin = _mm512_min_ps(zmin, x);
-			zmax = _mm512_max_ps(zmax, x);
+			zmin = _mm512_mask_min_ps(zmin, 0x000F, zmin, x);
+			zmax = _mm512_mask_max_ps(zmax, 0x000F, zmax, x);
 
 			src += 4;
 			frames -= 4;
@@ -312,8 +312,8 @@ x86_avx512f_find_peaks(const float *src, uint32_t nframes, float *minf, float *m
 		// Pointers are aligned to float boundaries (4 bytes)
 		__m512 x = _mm512_castps128_ps512(_mm_load_ss(src));
 
-		zmin = _mm512_min_ps(zmin, x);
-		zmax = _mm512_max_ps(zmax, x);
+		zmin = _mm512_mask_min_ps(zmin, 0x0001, zmin, x);
+		zmax = _mm512_mask_max_ps(zmax, 0x0001, zmax, x);
 
 		++src;
 		--frames;
@@ -460,8 +460,8 @@ x86_avx512f_find_peaks(const float *src, uint32_t nframes, float *minf, float *m
 	while (frames >= 8) {
 		__m512 x = _mm512_castps256_ps512(_mm256_load_ps(src));
 
-		zmin = _mm512_min_ps(zmin, x);
-		zmax = _mm512_max_ps(zmax, x);
+		zmin = _mm512_mask_min_ps(zmin, 0x00FF, zmin, x);
+		zmax = _mm512_mask_max_ps(zmax, 0x00FF, zmax, x);
 
 		src += 8;
 		frames -= 8;
@@ -471,8 +471,8 @@ x86_avx512f_find_peaks(const float *src, uint32_t nframes, float *minf, float *m
 	while (frames >= 4) {
 		__m512 x = _mm512_castps128_ps512(_mm_load_ps(src));
 
-		zmin = _mm512_min_ps(zmin, x);
-		zmax = _mm512_max_ps(zmax, x);
+		zmin = _mm512_mask_min_ps(zmin, 0x000F, zmin, x);
+		zmax = _mm512_mask_max_ps(zmax, 0x000F, zmax, x);
 
 		src += 4;
 		frames -= 4;
@@ -482,8 +482,8 @@ x86_avx512f_find_peaks(const float *src, uint32_t nframes, float *minf, float *m
 	while (frames > 0) {
 		__m512 x = _mm512_castps128_ps512(_mm_load_ss(src));
 
-		zmin = _mm512_min_ps(zmin, x);
-		zmax = _mm512_max_ps(zmax, x);
+		zmin = _mm512_mask_min_ps(zmin, 0x0001, zmin, x);
+		zmax = _mm512_mask_max_ps(zmax, 0x0001, zmax, x);
 
 		++src;
 		--frames;
