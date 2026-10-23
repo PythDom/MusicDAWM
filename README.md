@@ -14,7 +14,7 @@ Its workflow: import recordings, add drums the Korg Sound On Sound way, fix voca
 | `ci/`, `.github/workflows/` | Windows build and portable folder (shipped); Linux build for fast tests |
 | `session_utils/mother_smoke.cc`, `tools/mother-smoke/` | Headless test of a session shaped like the "Mother" reference project |
 
-**Updating to a new Ardour release:** fetch the release tag from https://github.com/Ardour/ardour (`git fetch --no-tags https://github.com/Ardour/ardour.git refs/tags/X.Y:refs/tags/X.Y`), merge it, resolve conflicts, update `ci/ardour-ref`. The build needs the release's annotated tag, because Ardour takes its version number from `git describe`.
+**Updating to a new Ardour release:** fetch the release tag from https://github.com/Ardour/ardour (`git fetch --no-tags https://github.com/Ardour/ardour.git refs/tags/X.Y:refs/tags/X.Y`), merge it, resolve conflicts, update `ci/ardour-ref`. The build needs the release's annotated tag, because Ardour takes its version number from `git describe`; `ci/ardour-tag.sh` fetches it from Ardour when it is missing (tags cannot be pushed to this repository from the cloud session).
 
 Ardour does not accept LLM-generated code (see DECISIONS.md D-010), so MusicDAWM's changes stay in this fork.
 

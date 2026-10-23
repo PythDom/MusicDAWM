@@ -29,6 +29,7 @@ echo "toolchain: CC=$(command -v gcc || echo none) PY=$(command -v python3 || ec
 gcc --version | head -1
 python3 -c 'import sys; print("python", sys.version.split()[0], sys.platform, sys.executable)'
 cd "$(dirname "$0")/.."
+bash ci/ardour-tag.sh
 
 # waf would otherwise try MSVC from the runner image first (hence also the
 # --check-c*-compiler options). Under a native Windows Python it needs full

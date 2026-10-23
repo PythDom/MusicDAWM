@@ -21,8 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0     # Ardour's build takes its version from git describe
-          fetch-tags: true
+          fetch-depth: 0     # git describe needs the history; ci/ardour-tag.sh adds the tag
       - name: Build
         id: build
         run: bash ci/linux-build.sh
