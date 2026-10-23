@@ -76,7 +76,7 @@ gtk2_ardour_sources = [
         'cue_editor.cc',
         'curvetest.cc',
         'debug.cc',
-        'drum_studio_window.cc',
+        'drum_studio_panel.cc',
         'dsp_stats_ui.cc',
         'dsp_stats_window.cc',
         'duplicate_routes_dialog.cc',

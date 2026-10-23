@@ -140,7 +140,6 @@ class RTAWindow;
 class DspStatisticsWindow;
 class TransportMastersWindow;
 class VirtualKeyboardWindow;
-class DrumStudioWindow;
 class LibraryDownloadDialog;
 #endif
 
@@ -702,7 +701,6 @@ private:
 	WM::ProxyWithConstructor<BigClockWindow> big_clock_window;
 	WM::ProxyWithConstructor<BigTransportWindow> big_transport_window;
 	WM::ProxyWithConstructor<VirtualKeyboardWindow> virtual_keyboard_window;
-	WM::ProxyWithConstructor<DrumStudioWindow> drum_studio_window;
 	WM::ProxyWithConstructor<LibraryDownloadDialog> library_download_window;
 	WM::ProxyWithConstructor<GlobalPortMatrixWindow> audio_port_matrix;
 	WM::ProxyWithConstructor<GlobalPortMatrixWindow> midi_port_matrix;
@@ -718,7 +716,6 @@ private:
 	BigClockWindow*         create_big_clock_window();
 	BigTransportWindow*     create_big_transport_window();
 	VirtualKeyboardWindow*  create_virtual_keyboard_window();
-	DrumStudioWindow*       create_drum_studio_window();
 	LibraryDownloadDialog*  create_library_download_window();
 	GlobalPortMatrixWindow* create_global_port_matrix (ARDOUR::DataType);
 	KeyEditor*              create_key_editor ();

@@ -41,6 +41,7 @@
 #include "keyboard.h"
 #include "public_editor.h"
 #include "virtual_keyboard_window.h"
+#include "drum_studio_panel.h"
 
 #include "gtkmm2ext/debug.h"
 #include "gtkmm2ext/utils.h"
@@ -64,6 +65,11 @@ ARDOUR_UI::key_event_handler (GdkEventKey* ev, Gtk::Window* event_window)
 		if (gtk_window_propagate_key_event (virtual_keyboard_window->gobj(), ev)) {
 			return true;
 		}
+	}
+
+	/* MusicDAWM Drum Studio perform keys, only while switched on */
+	if (DrumStudioPanel::key_press (ev)) {
+		return true;
 	}
 
 	/* until we get ardour bindings working, we are not handling key

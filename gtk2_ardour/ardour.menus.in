@@ -726,7 +726,7 @@
       <menuitem action='toggle-big-clock'/>
       <menuitem action='toggle-big-transport'/>
       <menuitem action='toggle-virtual-keyboard'/>
-      <menuitem action='toggle-drum-studio'/>
+      <menuitem action='show-drum-studio'/>
       <menuitem action='toggle-library-downloader'/>
 
       <separator/><!-- Video Monitor !-->

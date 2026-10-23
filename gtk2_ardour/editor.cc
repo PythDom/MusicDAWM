@@ -123,6 +123,7 @@
 #include "editor_routes.h"
 #include "editor_section_box.h"
 #include "editor_sections.h"
+#include "drum_studio_panel.h"
 #include "editor_snapshots.h"
 #include "editor_sources.h"
 #include "editor_summary.h"
@@ -695,6 +696,13 @@ Editor::Editor ()
 	add_notebook_page (_("Snaps"), _("Snapshots"), _snapshots->widget ());
 	add_notebook_page (_("Groups"), _("Track & Bus Groups"), _route_groups->widget ());
 	add_notebook_page (_("Marks"), _("Ranges & Marks"), _locations->widget ());
+
+	_drum_studio = manage (new DrumStudioPanel);
+	Gtk::ScrolledWindow* dsw = wrap (GTK_SCROLLED_WINDOW (gtk_scrolled_window_new (nullptr, nullptr)));
+	dsw->set_policy (Gtk::POLICY_AUTOMATIC, Gtk::POLICY_AUTOMATIC);
+	dsw->add (*_drum_studio);
+	add_notebook_page (_("Drums"), _("Drum Studio"), *dsw);
+	_drum_studio_page = dsw;
 
 	/* Don't want to create adjustments for this, and C++ API doesn't allow
 	 * a ScrolledWindow without specified adjustments (unlike the C
@@ -1290,6 +1298,7 @@ Editor::set_session (Session *t)
 	_leftmost_sample = session_gui_extents().first.samples();
 
 	_trigger_clip_picker.set_session (_session);
+	_drum_studio->set_session (_session);
 	_application_bar.set_session (_session);
 	nudge_clock->set_session (_session);
 	_summary->set_session (_session);
@@ -5616,6 +5625,21 @@ Editor::action_menu_item (std::string const & name)
 	assert (a);
 
 	return *manage (a->create_menu_item ());
+}
+
+void
+Editor::show_drum_studio ()
+{
+	ARDOUR_UI::instance ()->show_tabbable (this);
+	show_editor_list_action->set_active (true);
+	_the_notebook.set_current_page (_the_notebook.page_num (*_drum_studio_page));
+
+	/* widen the sidebar if the panel does not fit */
+	int const want  = _drum_studio->size_request ().width + 24;
+	int const total = content_right_pane.get_allocation ().get_width ();
+	if (total > 0 && (1.f - content_right_pane.get_divider (0)) * total < want) {
+		content_right_pane.set_divider (0, std::max (0.4f, 1.f - (float) want / total));
+	}
 }
 
 void

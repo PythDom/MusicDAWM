@@ -157,6 +157,8 @@ class TimeSelection;
 class RegionLayeringOrderEditor;
 class VerboseCursor;
 
+class DrumStudioPanel;
+
 class Editor : public PublicEditor, public PBD::ScopedConnectionList
 {
 public:
@@ -164,6 +166,9 @@ public:
 	~Editor ();
 
 	void             set_session (ARDOUR::Session*);
+
+	/* MusicDAWM: show the Drum Studio page of the sidebar */
+	void show_drum_studio ();
 
 	Gtk::Window* use_own_window (bool and_fill_it);
 
@@ -1030,6 +1035,8 @@ private:
 	Gtk::HBox           edit_controls_hbox;
 
 	TriggerClipPicker    _trigger_clip_picker;
+	DrumStudioPanel*     _drum_studio;
+	Gtk::Widget*         _drum_studio_page;
 
 	void control_vertical_zoom_in_all ();
 	void control_vertical_zoom_out_all ();

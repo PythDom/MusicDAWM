@@ -141,6 +141,8 @@ public:
 	 * @param s Session to connect to.
 	 */
 	virtual void set_session (ARDOUR::Session* s) = 0;
+	/* MusicDAWM: show the Drum Studio page of the sidebar */
+	virtual void show_drum_studio () = 0;
 
 	virtual samplepos_t playhead_cursor_sample () const = 0;
 
