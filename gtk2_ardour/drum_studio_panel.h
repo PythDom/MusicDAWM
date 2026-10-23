@@ -69,6 +69,7 @@ private:
 	bool handle_key (GdkEventKey*);
 
 	std::shared_ptr<ARDOUR::MidiTrack> drum_track () const;
+	int playing_slot () const; /* what the drum track's trigger box plays, or -1 */
 
 	ArdourWidgets::ArdourDropdown _style;
 	ArdourWidgets::ArdourDropdown _kit;
@@ -90,6 +91,7 @@ private:
 	int         _part;        /* last requested part, for the 1-4 keys */
 	int         _complexity;  /* last requested complexity, for the part keys */
 	bool        _keys_on;
+	int         _shown_playing; /* slot shown as playing */
 
 	ARDOUR::DrumStudio::Quantize           _q;
 	std::unique_ptr<ARDOUR::DrumPerformer> _performer;

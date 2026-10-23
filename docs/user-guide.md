@@ -53,12 +53,12 @@ Then click **Start**.
 | Packaging | Portable folder (zip), releases on GitHub | Installer |
 | Audio drivers | PortAudio: WASAPI, MME, DirectSound, WDM-KS. **No ASIO.** | Same, plus ASIO in official builds |
 | Plugin formats | VST3, VST2 and LV2. CLAP is planned (§6). | VST3, VST2, LV2 |
-| Bundled plugins | Ardour's own ACE plugins only: compressor (a-comp), delay, EQ, expander, reverb, FluidSynth player, Reasonable Synth | Also bundles third-party plugins: Harrison channel strip, several x42 plugins (including the AVL drum kit and a limiter) and a General MIDI synth |
+| Bundled plugins | Ardour's own ACE plugins (compressor, delay, EQ, expander, reverb, FluidSynth player, Reasonable Synth) and the **AVL drum kits** (x42-avldrums) for Drum Studio | Also bundles other third-party plugins: Harrison channel strip, several x42 plugins (including the AVL drum kit and a limiter) and a General MIDI synth |
 | Video | No video tools | Bundles the video helpers (harvid, xjadeo) |
 | Fonts | Uses fontconfig to draw text (see §5) | Uses the Windows font system |
 | Bug fixes | Correct peak meters and waveform overviews on CPUs with AVX-512 (Ardour 9.8 can show a wrong minimum or maximum there) | Not fixed in 9.8 |
 
-The missing third-party plugins are a packaging choice for now, not a limitation of the program; WP3 adds the AVL drum kit and WP7 adds a limiter.
+The missing third-party plugins are a packaging choice for now, not a limitation of the program; WP7 adds a limiter.
 
 ## 5. Troubleshooting
 
@@ -73,14 +73,53 @@ The missing third-party plugins are a packaging choice for now, not a limitation
 
 **Reporting a problem:** use **Help → Report a Bug**, which opens the MusicDAWM issue page, and describe what you did, what you expected, and what happened. Please do not report MusicDAWM problems to the Ardour project: Ardour's developers cannot accept MusicDAWM's code (see `DECISIONS.md` D-010), and a problem may come from our changes rather than theirs. A problem you can also reproduce in stock Ardour 9.8 is fine to report to them in your own words.
 
-## 6. Coming next
+## 6. Drum Studio
+
+Drum Studio gives a song a drummer: pick a style, then play the song parts live while your guitar track plays, the way you would call out parts to a drummer. Everything you play is recorded on the timeline, plays back the same way, and can be turned into ordinary MIDI that you edit note by note.
+
+**Open it:** **Window → Drum Studio**. It is a page of the Editor's sidebar (the list on the right, next to Regions and Ranges & Marks), so the timeline stays in view.
+
+### Make the drum track
+
+1. **Style:** Rock, Pop, Ballad, Blues shuffle, Funk, Country, Reggae, Bossa nova, Jazz swing, Half-time, 6/8 or Punk.
+2. **Kit:** one of the bundled AVL acoustic kits (Black Pearl, Red Zeppelin, Blonde Bop, Buskman's Holiday), or **No instrument** to use your own drum plugin, such as MT Power DrumKit. The grooves are plain General MIDI drum notes, so any GM drum instrument plays them.
+3. **Create Drum Track.** You get a MIDI track called *Drums* with the kit and all 28 grooves loaded: 7 parts (intro, verse, pre-chorus, chorus, bridge, fill, ending) × 4 complexities (1 = simple, 4 = busy). If the style is in 6/8 and the song has a single time signature, the song is switched to 6/8 (undo reverts it). The style's suggested tempo is shown; your song's tempo is not changed.
+
+To change style later, pick another style and press **Load Style**: the drum track gets the new grooves.
+
+### Perform
+
+- **Click a cell** to start or switch. With the transport stopped, a click starts playback at the playhead with that groove, so you can audition each cell at your song's tempo.
+- While playing, a click switches at the next **Switch at** point: *Next beat*, *Next bar* (default) or *Next 2 bars* (two-bar phrases start on odd bars). The waiting cell is lit; the playing cell is red.
+- **Keys:** turn on **Keys** to play with the keyboard. **I** intro, **V** verse, **P** pre-chorus, **C** chorus, **B** bridge, **F** fill, **E** ending; **1–4** change the complexity of the current part. A part key keeps the last complexity. While Keys is on these keys switch the drums instead of doing their usual Editor shortcuts. Turn it off, or switch the sidebar to another page, to get the shortcuts back.
+- A **fill** plays for one bar, then the part you were in comes back by itself. The **ending** plays once.
+- **Stop** silences the drums at once; the transport keeps rolling.
+
+### Record, replay, adjust
+
+1. Turn on **Record** (it is Ardour's *Rec Cues*), put the playhead at the start and play the song, switching parts as you go. Stop the transport: every switch is now a cue marker in the *Location Markers* ruler, on the beat or bar where it happened. Record turns itself off at the stop.
+2. Play from the start: the drums replay your switches.
+3. Adjust without re-playing: **drag** a marker to move a switch, or delete it. To redo a section, arm Record again and play over it: only the markers in the range you play are replaced.
+
+### Flatten to MIDI
+
+**Flatten** turns the recorded switches into MIDI regions on the drum track, named for example *Rock Verse 2*. Each region has its own copy of the notes, so deleting one kick in one verse leaves the other verses alone. Flatten also turns **Play Cues** off so the cue markers no longer play the drums a second time. Undo (Ctrl+Z) removes the regions; turning Play Cues back on lets the markers play again.
+
+After flattening, edit the drums like any MIDI: double-click a region to edit notes, or use Ardour's MIDI tools. Exports include them.
+
+### Good to know
+
+- Drum tracks start at −6 dB, because the AVL kits are loud on accented crashes. The track monitors **In** and **Disk** together, so it plays the regions, the cues and a MIDI drum pad you connect.
+- Switches are timed by the program's display loop. If the program freezes for longer than a beat right before a switch (for example while a plugin window opens), that switch can land one beat late; drag its marker into place.
+- A session with a drum track is an ordinary Ardour session plus a few extra settings that stock Ardour ignores, so it should open in stock Ardour 9.8 without the Drum Studio page. This has not been tested yet.
+
+## 7. Coming next
 
 None of these are available yet. Each work package adds its section to this guide when it ships.
 
 | Feature | What it will do for you | Work package |
 |---|---|---|
 | Songwriter layout and start screen | Recording controls hidden; "New song from WAV files" imports your Zoom R8 tracks aligned in one step | WP2 |
-| Drum Studio | Pick a style, get intro/verse/chorus/fill/ending grooves in 4 variations, played by a realistic drum kit with nothing to buy. Switch variations live with the keys 1–4 and I/V/C/B/F/E while the guitar plays, then replay, adjust and turn the result into editable MIDI. | WP3 |
 | Tap Tempo Map | Tap a key along with a recording played without a click, and the bar grid follows the performance | WP4 |
 | DAWproject import | Open projects exported from Cubase (and other DAWs) | WP5 |
 | Waveform 11 and Cubase import | Menu entries that bring your old projects across | WP6 |
@@ -95,3 +134,5 @@ None of these are available yet. Each work package adds its section to this guid
 The folder also contains Ardour's command-line session tools under MusicDAWM names (`musicdawm9-new_session.exe`, `musicdawm9-new_empty_session.exe`, `musicdawm9-export.exe`, `musicdawm9-lua.exe`), which work as in Ardour.
 
 `musicdawm9-mother_smoke.exe` is MusicDAWM's own self-test. It builds a test session from seven WAV files with the exact track names of the "Mother" reference project, checks it, saves it and reopens it. It is meant for the build pipeline, not for your songs: it only accepts the generated test files from `tools/mother-smoke/make_wavs.py`.
+
+`musicdawm9-drum_studio_test.exe` tests Drum Studio the same way: it creates a rock drum track, performs intro → verse → fill → chorus → ending in real time with Rec Cues, replays it, drags a switch, flattens, edits one kick, saves and reopens. `musicdawm9-drum_studio_demo.exe <folder> <style>` writes a short demo song in one style (for example `rock` or `six_eight`) that you can open or export to hear the style.

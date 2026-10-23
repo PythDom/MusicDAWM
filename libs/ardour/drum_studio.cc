@@ -570,6 +570,17 @@ DrumPerformer::tick ()
 	timepos_t const     now (_session.transport_sample ());
 	TempoMap::SharedPtr tmap (TempoMap::use ());
 
+	if (_pending < 0) {
+		/* follow what really plays (e.g. a groove started while stopped,
+		 * whose state a transport start may have reset), so that a fill
+		 * knows where to return */
+		std::shared_ptr<MidiTrack> track = DrumStudio::find_drum_track (_session);
+		TriggerPtr                 cp    = (track && track->triggerbox ()) ? track->triggerbox ()->currently_playing () : TriggerPtr ();
+		if (cp) {
+			_playing = cp->index ();
+		}
+	}
+
 	if (_pending >= 0) {
 		/* send in the last (meter) beat before the boundary */
 		TempoMetric const metric (tmap->metric_at (_pending_at));

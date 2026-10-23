@@ -219,6 +219,42 @@ main (int argc, char* argv[])
 	}
 	check (DrumStudio::bundled_kits ().empty () || track->the_instrument (), "plays through the bundled kit when it is installed");
 
+	/* 2b. a fill right after starting from stopped returns to that part */
+	{
+		printf ("-- fill right after a start (real time, about 7 s)\n");
+		DrumPerformer quick (*s);
+		quick.set_quantize (DrumStudio::QuantizeBar);
+		s->request_locate (0, false, MustStop);
+		Glib::usleep (300000);
+		quick.request (DrumStudio::part_index ("intro"), 1); /* starts the transport */
+		s->request_roll ();
+		wait_rolling (s, true);
+		bool asked = false;
+		int  at_bar2 = -1, at_bar3 = -1;
+		while (s->transport_sample () < bar (3) + 24000) {
+			samplepos_t const now = s->transport_sample ();
+			if (!asked && now > 24000) {
+				quick.request (DrumStudio::part_index ("fill"), 1);
+				asked = true;
+			}
+			quick.tick ();
+			TriggerPtr t = tb->currently_playing ();
+			if (now > bar (2) + 12000 && now < bar (3)) {
+				at_bar2 = t ? (int)t->index () : -1;
+			}
+			if (now > bar (3) + 12000) {
+				at_bar3 = t ? (int)t->index () : -1;
+			}
+			Glib::usleep (20000);
+		}
+		s->request_stop ();
+		wait_rolling (s, false);
+		tb->stop_all_immediately ();
+		Glib::usleep (300000);
+		check (at_bar2 == cell ("fill", 1) && at_bar3 == cell ("intro", 1),
+		       string_compose ("fill at bar 2, back to the intro at bar 3 (%1, %2)", at_bar2, at_bar3));
+	}
+
 	/* 3. perform live, Rec Cues armed */
 	printf ("-- perform (real time, about 21 s)\n");
 	DrumPerformer perf (*s);

@@ -74,6 +74,7 @@ DrumStudioPanel::DrumStudioPanel ()
 	, _part (DrumStudio::part_index (X_("verse")))
 	, _complexity (2)
 	, _keys_on (false)
+	, _shown_playing (-1)
 	, _q (DrumStudio::QuantizeBar)
 {
 	_instance = this;
@@ -230,6 +231,17 @@ DrumStudioPanel::session_going_away ()
 	update_buttons ();
 }
 
+int
+DrumStudioPanel::playing_slot () const
+{
+	std::shared_ptr<MidiTrack> t = drum_track ();
+	if (!t || !t->triggerbox ()) {
+		return -1;
+	}
+	TriggerPtr cp = t->triggerbox ()->currently_playing ();
+	return cp ? (int) cp->index () : -1;
+}
+
 std::shared_ptr<MidiTrack>
 DrumStudioPanel::drum_track () const
 {
@@ -318,7 +330,13 @@ DrumStudioPanel::create_or_load ()
 void
 DrumStudioPanel::cell_clicked (int part, int complexity)
 {
-	if (!_performer || !drum_track ()) {
+	std::shared_ptr<MidiTrack> t = drum_track ();
+	if (!_performer || !t) {
+		return;
+	}
+	if (t->triggerbox () && t->triggerbox ()->trigger (0) && t->triggerbox ()->trigger (0)->cue_isolated ()) {
+		/* after Flatten the regions play the song; cues would be ignored */
+		_status.set_text (_("Play Cues is off (the song was flattened). Turn it on to perform again."));
 		return;
 	}
 	_part       = part;
@@ -345,7 +363,7 @@ DrumStudioPanel::stop ()
 	if (_performer) {
 		_performer->reset ();
 	}
-	_session->trigger_stop_all (false);
+	_session->trigger_stop_all (true);
 	update_buttons ();
 }
 
@@ -384,7 +402,7 @@ DrumStudioPanel::flatten ()
 	if (n < 0) {
 		_status.set_text (_("Flatten failed."));
 	} else {
-		_status.set_text (string_compose (_("Flattened to %1 MIDI regions. Undo brings the cue markers back into play."), n));
+		_status.set_text (string_compose (_("Flattened to %1 MIDI regions. Undo removes them; turn Play Cues on to let the markers play the drums again."), n));
 	}
 	update_buttons ();
 }
@@ -426,10 +444,9 @@ DrumStudioPanel::tick ()
 	if (!_performer || !is_mapped ()) {
 		return;
 	}
-	int const playing = _performer->playing_slot ();
 	int const pending = _performer->pending_slot ();
 	_performer->tick ();
-	if (playing != _performer->playing_slot () || pending != _performer->pending_slot ()) {
+	if (pending != _performer->pending_slot () || _shown_playing != playing_slot ()) {
 		update_buttons ();
 	}
 }
@@ -449,7 +466,8 @@ DrumStudioPanel::update_buttons ()
 	}
 	_kit.set_sensitive (!has);
 
-	int const playing = _performer ? _performer->playing_slot () : -1;
+	/* show what the trigger box really plays */
+	int const playing = _shown_playing = playing_slot ();
 	int const pending = _performer ? _performer->pending_slot () : -1;
 	for (int s = 0; s < (int)_cells.size (); ++s) {
 		_cells[s]->set_sensitive (has);
