@@ -30,7 +30,7 @@ jobs:
           update: true
           install: git base-devel
       - name: Fetch Ardour
-        run: git clone --depth 1 --branch "$(cat ci/ardour-ref)" https://github.com/Ardour/ardour.git ardour
+        run: git -c core.autocrlf=false clone --depth 1 --branch "$(cat ci/ardour-ref)" https://github.com/Ardour/ardour.git ardour
       - name: Build
         id: build
         run: bash ci/windows-msys2-build.sh ardour stage 2>&1 | tee windows-build.log; exit ${PIPESTATUS[0]}

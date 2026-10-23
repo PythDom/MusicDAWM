@@ -1,0 +1,3 @@
+# Keep exact bytes on Windows checkouts: patches must match Ardour's LF sources.
+*.patch -text
+*.sh text eol=lf
