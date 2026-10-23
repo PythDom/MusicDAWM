@@ -66,6 +66,11 @@ jobs:
           stage/bin/musicdawm9-mother_smoke.exe "$(cygpath -m "$T/mother")" "${wavs[@]}"
           stage/bin/musicdawm9-export.exe -o "$(cygpath -m "$T/mother-mix.wav")" "$(cygpath -m "$T/mother")" Mother
           ls -l "$T/mother-mix.wav"
+      - name: Drum Studio test (bundle only, with the AVL kits)
+        run: |
+          T=$(cygpath -u "$RUNNER_TEMP")
+          export PATH="$PWD/stage/bin:/usr/bin:/c/Windows/System32:/c/Windows"
+          MUSICDAWM_REQUIRE_KIT=1 stage/bin/musicdawm9-drum_studio_test.exe "$(cygpath -m "$T/drums")" -
       - name: Zip
         run: |
           name="MusicDAWM-${{ steps.version.outputs.version }}-win64"
@@ -86,6 +91,7 @@ jobs:
             msys2-missing.txt
             build/config.log
             build.log
+            avldrums.log
           if-no-files-found: ignore
 
   release:

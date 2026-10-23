@@ -14,7 +14,9 @@
  *    slots are still there
  *
  * Built with the other session utilities as <prefix>-drum_studio_test.
- * Usage: <prefix>-drum_studio_test <session-dir> <groove-library-dir>
+ * Usage: <prefix>-drum_studio_test <session-dir> <groove-library-dir | ->
+ * ("-" uses the installed library; MUSICDAWM_REQUIRE_KIT=1 also requires the
+ * bundled AVL kits)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,6 +26,7 @@
 
 #include <cinttypes>
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 #include <unistd.h>
 #include <iostream>
@@ -156,10 +159,13 @@ main (int argc, char* argv[])
 		return reopen (argv[2], argv[3], atoi (argv[4]), atoi (argv[5]));
 	}
 	if (argc < 3) {
-		cerr << "usage: " << argv[0] << " <session-dir> <groove-library-dir>\n";
+		cerr << "usage: " << argv[0] << " <session-dir> <groove-library-dir | ->\n"
+		     << "  -: use the installed library (data search path)\n";
 		return 2;
 	}
-	Glib::setenv ("MUSICDAWM_DRUMSTUDIO_DIR", argv[2], true);
+	if (string (argv[2]) != "-") {
+		Glib::setenv ("MUSICDAWM_DRUMSTUDIO_DIR", argv[2], true);
+	}
 
 	SessionUtils::init (false);
 	BusProfile bus_profile;
@@ -203,6 +209,10 @@ main (int argc, char* argv[])
 	std::shared_ptr<Region> fill  = tb->trigger (cell ("fill", 3))->the_region ();
 	check (verse && verse->length ().beats () == Beats (8, 0), "verse groove is 2 bars");
 	check (fill && fill->length ().beats () == Beats (4, 0), "fill is 1 bar");
+	if (getenv ("MUSICDAWM_REQUIRE_KIT")) {
+		/* set by the Windows workflow, which bundles the kit */
+		check (DrumStudio::bundled_kits ().size () >= 4, string_compose ("the AVL kits are installed (%1)", DrumStudio::bundled_kits ().size ()));
+	}
 	check (DrumStudio::bundled_kits ().empty () || track->the_instrument (), "plays through the bundled kit when it is installed");
 
 	/* 3. perform live, Rec Cues armed */
@@ -318,7 +328,11 @@ main (int argc, char* argv[])
 	SessionUtils::unload_session (s);
 	SessionUtils::cleanup ();
 
-	string const cmd = string_compose ("\"%1\" --reopen \"%2\" \"%3\" %4 %5", argv[0], argv[1], argv[2], regions, want.size ());
+	string cmd = string_compose ("\"%1\" --reopen \"%2\" \"%3\" %4 %5", argv[0], argv[1], argv[2], regions, want.size ());
+#ifdef PLATFORM_WINDOWS
+	/* cmd.exe drops the first and last quote of the whole line */
+	cmd = "\"" + cmd + "\"";
+#endif
 	int const reopened = system (cmd.c_str ());
 	check (reopened == 0, "after reopening: drum track, regions and cue markers are there");
 
@@ -329,7 +343,9 @@ main (int argc, char* argv[])
 static int
 reopen (char const* dir, char const* lib, size_t regions, size_t markers)
 {
-	Glib::setenv ("MUSICDAWM_DRUMSTUDIO_DIR", lib, true);
+	if (string (lib) != "-") {
+		Glib::setenv ("MUSICDAWM_DRUMSTUDIO_DIR", lib, true);
+	}
 	SessionUtils::init (false);
 	Session* s = SessionUtils::load_session (dir, "Drums");
 	std::shared_ptr<MidiTrack> again = DrumStudio::find_drum_track (*s);
