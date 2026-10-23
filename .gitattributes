@@ -1,3 +1,7 @@
-# Keep exact bytes on Windows checkouts: patches must match Ardour's LF sources.
+# From Ardour
+/* export-ignore
+/README-GITHUB.txt -export-ignore
+
+# MusicDAWM
 *.patch -text
 *.sh text eol=lf

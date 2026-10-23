@@ -1,0 +1,13 @@
+#!/usr/bin/env python
+
+import os
+
+def configure(conf):
+    pass
+
+def build(bld):
+    scripts = bld.path.ant_glob ('*.lua', excl=['^_*'])
+    bld.install_files (os.path.join(bld.env['DATADIR'], 'scripts'), scripts)
+
+def options(opt):
+    pass
