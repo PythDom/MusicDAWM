@@ -390,6 +390,7 @@ children = [
         'libs/plugins/a-fluidsynth.lv2',
         #'libs/plugins/a-vapor.lv2',
         # arch independent data
+        'share/drumstudio',
         'share/export',
         'share/media',
         'share/midi_maps',

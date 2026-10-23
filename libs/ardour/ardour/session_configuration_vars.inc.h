@@ -38,6 +38,8 @@ CONFIG_VARIABLE (bool, auto_return, "auto-return", false)
 CONFIG_VARIABLE (bool, auto_input, "auto-input", true)
 CONFIG_VARIABLE (bool, triggerbox_overrides_disk_monitoring, "triggerbox-overrides-disk-monitoring", true)
 CONFIG_VARIABLE (CueBehavior, cue_behavior, "cue-behavior", FollowCues)
+/* MusicDAWM Drum Studio: Rec Cues places recorded cues on the next beat instead of the next bar */
+CONFIG_VARIABLE (bool, cue_record_snap_to_beat, "cue-record-snap-to-beat", false)
 CONFIG_VARIABLE (bool, punch_in, "punch-in", false)
 CONFIG_VARIABLE (bool, punch_out, "punch-out", false)
 CONFIG_VARIABLE (bool, count_in, "count-in", false)

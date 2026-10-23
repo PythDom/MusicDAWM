@@ -44,6 +44,13 @@ jobs:
           build/session_utils/musicdawm9-mother_smoke "$RUNNER_TEMP/mother" "$RUNNER_TEMP"/wavs/*.wav
           build/session_utils/musicdawm9-export -o "$RUNNER_TEMP/mother-mix.wav" "$RUNNER_TEMP/mother" Mother
           python3 -c "import wave,sys; w=wave.open(sys.argv[1]); n=w.getnframes()/w.getframerate(); print('export', n, 's'); sys.exit(abs(n-343) > 0.01)" "$RUNNER_TEMP/mother-mix.wav"
+      - name: Drum Studio tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          sudo apt-get install -y -qq python3-mido
+          python3 tools/drumstudio/test_grooves.py
+          export TOP="$PWD"; . build/gtk2_ardour/ardev_common_waf.sh
+          build/session_utils/musicdawm9-drum_studio_test "$RUNNER_TEMP/drums" "$PWD/share/drumstudio/grooves"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

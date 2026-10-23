@@ -2249,7 +2249,12 @@ Session::flush_cue_recording ()
 	while (TriggerBox::cue_records.read (&cr, 1) == 1) {
 		BBT_Argument bbt = tmap->bbt_at (timepos_t (cr.when));
 		Meter const & meter (tmap->meter_at (timepos_t (cr.when)));
-		bbt = BBT_Argument (bbt.reference(), meter.round_up_to_bar (bbt));
+		if (config.get_cue_record_snap_to_beat ()) {
+			/* MusicDAWM Drum Studio sends each cue in the beat before it starts */
+			bbt = BBT_Argument (bbt.reference(), meter.round_up_to_beat (bbt));
+		} else {
+			bbt = BBT_Argument (bbt.reference(), meter.round_up_to_bar (bbt));
+		}
 
 		const timepos_t when (tmap->quarters_at (bbt));
 
