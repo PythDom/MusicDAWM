@@ -545,6 +545,11 @@ def configure(conf):
     conf.define('VERSIONSTRING', conf.env['VERSION'])
     conf.define('CODENAME', enoify(int(conf.env['MAJOR']), int(conf.env['MINOR'])))
     conf.env['define_key'] = ['VERSIONSTRING', 'CODENAME' ]
+    # MusicDAWM: the product version (top-level VERSION file), shown next to
+    # the Ardour version it is based on.
+    musicdawm_version = conf.path.parent.find_node ('VERSION')
+    if musicdawm_version:
+        conf.define('MUSICDAWM_VERSION', musicdawm_version.read().strip())
     conf.write_config_header('gtk2ardour-version.h')
     conf.env['define_key'] = bak
 
@@ -1013,6 +1018,12 @@ def build(bld):
     # Color Themes. Find each color file for this program only
     # and install
     bld.install_files (os.path.join(bld.env['DATADIR'], 'themes'), bld.path.ant_glob ('themes/*-' + pgmname.lower() + '.colors'))
+    # MusicDAWM: a program name without its own themes uses Ardour's, installed
+    # under the name ui_config.cc looks for (<theme>-<program>.colors).
+    if not bld.path.ant_glob ('themes/*-' + pgmname.lower() + '.colors'):
+        for theme in bld.path.ant_glob ('themes/*-ardour.colors'):
+            name = os.path.basename (theme.srcpath()).replace ('-ardour.colors', '-' + pgmname.lower() + '.colors')
+            bld.install_as (os.path.join(bld.env['DATADIR'], 'themes', name), theme)
 
     # Default export stuff
     bld.install_files(os.path.join(bld.env['CONFDIR'], 'export'), bld.path.ant_glob('export/*.format'))

@@ -2,8 +2,14 @@ name: Windows build
 
 # Native MSYS2 (UCRT64) build of MusicDAWM on a Windows runner, packaged as a
 # portable folder, then checked with the Mother smoke test. See DECISIONS.md D-007.
+# Run it manually with "publish" ticked to make a GitHub release (docs/releasing.md).
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish a GitHub release v<VERSION> with the portable zip"
+        type: boolean
+        default: false
   push:
     paths-ignore:
       - "**.md"
@@ -21,6 +27,8 @@ jobs:
     defaults:
       run:
         shell: msys2 {0}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Keep LF line endings
         shell: pwsh
@@ -32,10 +40,21 @@ jobs:
         with:
           msystem: UCRT64
           update: true
-          install: git base-devel
+          install: git base-devel zip
+      - name: Version
+        id: version
+        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: ccache
+          key: ccache-windows-${{ github.sha }}
+          restore-keys: ccache-windows-
       - name: Build
         id: build
-        run: bash ci/windows-msys2-build.sh stage 2>&1 | tee windows-build.log; exit ${PIPESTATUS[0]}
+        run: |
+          export CCACHE_DIR="$(cygpath -u "$GITHUB_WORKSPACE")/ccache" CCACHE_MAXSIZE=3G CCACHE_BASEDIR="$(cygpath -m "$GITHUB_WORKSPACE")"
+          bash ci/windows-msys2-build.sh stage 2>&1 | tee windows-build.log; exit ${PIPESTATUS[0]}
       - name: Make portable folder
         run: bash ci/windows-package.sh stage
       - name: Mother smoke test (bundle only, MSYS2 off PATH)
@@ -44,14 +63,20 @@ jobs:
           python3 tools/mother-smoke/make_wavs.py "$T/wavs"
           wavs=(); for f in "$T"/wavs/*.wav; do wavs+=("$(cygpath -m "$f")"); done
           export PATH="$PWD/stage/bin:/usr/bin:/c/Windows/System32:/c/Windows"  # /usr/bin: MSYS tools only, no UCRT64 DLLs
-          stage/bin/ardour9-mother_smoke.exe "$(cygpath -m "$T/mother")" "${wavs[@]}"
-          stage/bin/ardour9-export.exe -o "$(cygpath -m "$T/mother-mix.wav")" "$(cygpath -m "$T/mother")" Mother
+          stage/bin/musicdawm9-mother_smoke.exe "$(cygpath -m "$T/mother")" "${wavs[@]}"
+          stage/bin/musicdawm9-export.exe -o "$(cygpath -m "$T/mother-mix.wav")" "$(cygpath -m "$T/mother")" Mother
           ls -l "$T/mother-mix.wav"
+      - name: Zip
+        run: |
+          name="MusicDAWM-${{ steps.version.outputs.version }}-win64"
+          mv stage "$name" && zip -qr9 "$name.zip" "$name" && mv "$name" stage
+          ls -l "$name.zip"
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         with:
-          name: musicdawm-windows-x64-portable
-          path: stage
+          name: MusicDAWM-${{ steps.version.outputs.version }}-win64
+          path: MusicDAWM-${{ steps.version.outputs.version }}-win64.zip
+          compression-level: 0   # already a zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -62,3 +87,22 @@ jobs:
             build/config.log
             build.log
           if-no-files-found: ignore
+
+  release:
+    needs: windows-msys2
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: MusicDAWM-${{ needs.windows-msys2.outputs.version }}-win64
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ needs.windows-msys2.outputs.version }}
+        run: |
+          gh release create "v$V" "MusicDAWM-$V-win64.zip" -R "${{ github.repository }}" \
+            --target "${{ github.sha }}" --title "MusicDAWM $V" \
+            --notes "Portable Windows x64 build of commit ${{ github.sha }}. See docs/user-guide.md for setup."

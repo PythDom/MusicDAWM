@@ -12,7 +12,7 @@ P=${MINGW_PACKAGE_PREFIX:?run inside an MSYS2 UCRT64 or MINGW64 shell}
 PKGS="toolchain gcc pkgconf python boost glibmm libsndfile curl libarchive liblo taglib
 vamp-plugin-sdk rubberband fftw aubio libsamplerate lv2 serd sord sratom lilv
 cairomm pangomm libwebsockets libxml2 cppunit portaudio libusb gtk2 libogg flac
-libvorbis opus soundtouch fontconfig python-numpy"
+libvorbis opus soundtouch fontconfig python-numpy ccache"
 
 # Install each package on its own so the log shows exactly which ones MSYS2 lacks.
 missing=""
@@ -34,13 +34,21 @@ bash ci/ardour-tag.sh
 # waf would otherwise try MSVC from the runner image first (hence also the
 # --check-c*-compiler options). Under a native Windows Python it needs full
 # Windows paths ("gcc" alone is "not executable").
-export CC="$(cygpath -m "$(command -v gcc).exe")" CXX="$(cygpath -m "$(command -v g++).exe")"
+CC="$(cygpath -m "$(command -v gcc).exe")" CXX="$(cygpath -m "$(command -v g++).exe")"
+# ccache (cache folder set by the workflow) cuts rebuilds from about 2 hours.
+if command -v ccache >/dev/null; then
+	CCACHE="$(cygpath -m "$(command -v ccache).exe")"
+	CC="$CCACHE $CC" CXX="$CCACHE $CXX"
+	ccache -z >/dev/null
+fi
+export CC CXX
 echo "CC=$CC CXX=$CXX"
 # --no-lrdf: liblrdf (LADSPA metadata only) is not packaged for MSYS2.
 # suil is not packaged either, but Ardour bundles it (libs/tk/suil).
 # --no-dr-mingw: Dr. MinGW (exchndl, crash backtraces) is not packaged; it is optional.
 # --cxx17: MSYS2 ships GCC 16, which defaults to C++20 (u8"" literals become char8_t).
 if ! python3 ./waf configure --check-c-compiler=gcc --check-cxx-compiler=g++ \
+	--program-name=MusicDAWM \
 	--dist-target=mingw --optimize --cxx17 --no-phone-home --no-lrdf --no-dr-mingw \
 	--with-backends=dummy,portaudio \
 	--prefix="$STAGE" --libdir="$STAGE/lib"; then
@@ -54,4 +62,5 @@ if ! python3 ./waf build -j"$(nproc)" > build.log 2>&1; then
 	exit 1
 fi
 tail -n 3 build.log
+command -v ccache >/dev/null && ccache -s | grep -iE "hits|misses|cache size" || true
 python3 ./waf install > install.log 2>&1 || { tail -n 40 install.log; exit 1; }

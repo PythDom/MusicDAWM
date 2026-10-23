@@ -77,10 +77,19 @@ ARDOUR_UI::launch_reference ()
 	PBD::open_uri (Config->get_reference_manual_url());
 }
 
+#ifdef MUSICDAWM_VERSION
+/* MusicDAWM problems belong in MusicDAWM's tracker, not Ardour's (DECISIONS.md D-010). */
+#define MUSICDAWM_ISSUES "https://github.com/PythDom/MusicDAWM/issues"
+#endif
+
 void
 ARDOUR_UI::launch_tracker ()
 {
+#ifdef MUSICDAWM_ISSUES
+	PBD::open_uri (MUSICDAWM_ISSUES);
+#else
 	PBD::open_uri ("https://tracker.ardour.org");
+#endif
 }
 
 void
@@ -110,6 +119,10 @@ ARDOUR_UI::launch_forums ()
 void
 ARDOUR_UI::launch_howto_report ()
 {
+#ifdef MUSICDAWM_ISSUES
+	PBD::open_uri (MUSICDAWM_ISSUES);
+#else
 	PBD::open_uri ("https://ardour.org/reporting_bugs");
+#endif
 }
 

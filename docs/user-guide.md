@@ -3,24 +3,24 @@
 MusicDAWM is a songwriting and arranging DAW based on [Ardour](https://ardour.org) 9.8.
 This guide covers only what is **specific to MusicDAWM**. Everything that works as in Ardour (editing, mixing, automation, MIDI, export and so on) is described in the [Ardour manual](https://manual.ardour.org).
 
-*Status: 2026-10-23. Phase 0 build; work package WP1 (branding, portable package) has not started.*
+*Status: 2026-10-23, MusicDAWM 0.1.0 (work package WP1: name, icon, portable zip, release process).*
 
-> **What exists today.** This build is Ardour 9.8 with the changes listed in §4, packaged as a portable Windows folder. The MusicDAWM features from the project brief (Drum Studio, Tap Tempo Map, DAWproject import, one-click freeze, limiter, CLAP, Melodyne via ARA) are **not built yet**. §6 lists them so you know what is coming; this guide will describe each one when it ships.
+> **What exists today.** MusicDAWM 0.1.0 is Ardour 9.8 under its own name, with the changes listed in §4, packaged as a portable Windows folder. The MusicDAWM features from the project brief (Drum Studio, Tap Tempo Map, DAWproject import, one-click freeze, limiter, CLAP, Melodyne via ARA) are **not built yet**. §6 lists them so you know what is coming; this guide will describe each one when it ships.
 
 ## 1. Getting the program
 
 MusicDAWM is a portable folder: there is no installer, and nothing is written outside the folder except your settings (§3).
 
-1. Open the repository on GitHub → **Actions** → **Windows build** → the latest green run.
-2. Under **Artifacts**, download `musicdawm-windows-x64-portable` (about 120 MB zipped, 450 MB unpacked). You must be signed in to GitHub.
-3. **Before unzipping:** right-click the zip → **Properties** → tick **Unblock** → **OK**. This stops the "Windows protected your PC" warning on every program inside. (In PowerShell: `Unblock-File .\musicdawm-windows-x64-portable.zip`.)
-4. Unzip to a folder of your choice, for example `C:\MusicDAWM`. Keep the folder structure as it is: the program finds its files relative to the `bin` folder.
+1. Download `MusicDAWM-<version>-win64.zip` (about 120 MB) from the repository's **Releases** page. For a build between releases: **Actions** → **Windows build** → the latest green run → **Artifacts** → `MusicDAWM-<version>-win64` (GitHub wraps it in a second zip; unpack that once). You must be signed in to GitHub.
+2. **Before unzipping:** right-click the zip → **Properties** → tick **Unblock** → **OK**. This stops the "Windows protected your PC" warning on every program inside. (In PowerShell: `Unblock-File .\MusicDAWM-0.1.0-win64.zip`.)
+3. Unzip to a folder of your choice, for example `C:\`. You get a folder `MusicDAWM-<version>-win64`. Keep its structure as it is: the program finds its files relative to the `bin` folder.
+4. To update, unzip the new version next to the old one. Settings and sessions are not inside the folder (§3), so nothing is lost; delete the old folder when the new one works.
 
 **Smart App Control.** On Windows 11, Smart App Control blocks unsigned programs with no "Run anyway" button, and MusicDAWM is not signed. Check it under **Windows Security → App & browser control → Smart App Control**. If it is **On**, MusicDAWM will not start. Turning it off cannot be undone without resetting Windows, so decide deliberately. When it is **Off** or **Evaluation**, the Unblock step above is enough.
 
 ## 2. Starting and setting up audio
 
-Start `bin\ardour-<version>.exe`, for example `bin\ardour-9.8.23.exe`. The number after 9.8 counts MusicDAWM's own changes; it changes with every build. Until WP1 the window title and program name still say "Ardour".
+Start **`bin\MusicDAWM.exe`**. You can make a shortcut to it (right-click → Send to → Desktop). **Help → About** shows the MusicDAWM version and the Ardour version it is based on.
 
 On the first start you get Ardour's welcome dialog (GUI scaling, then a few preferences). Then comes the **Audio/MIDI Setup** dialog:
 
@@ -39,15 +39,18 @@ Then click **Start**.
 
 ## 3. Where settings and sessions live
 
-- **Settings:** `%LOCALAPPDATA%\Ardour9` (for example `C:\Users\<you>\AppData\Local\Ardour9`). **If stock Ardour 9 is also installed, both programs share this folder** until WP1 gives MusicDAWM its own name. To start over with default settings, close the program and rename or delete that folder.
+- **Settings:** `%LOCALAPPDATA%\MusicDAWM9` (for example `C:\Users\<you>\AppData\Local\MusicDAWM9`), separate from stock Ardour's `Ardour9` folder. To start over with default settings, close the program and rename or delete that folder.
 - **Sessions:** wherever you create them; a session is a folder with a `.ardour` file. Sessions are ordinary Ardour 9 sessions: they open in stock Ardour 9.8, and stock Ardour 9.8 sessions open in MusicDAWM.
 
 ## 4. How this build differs from Ardour 9.8
 
 | Area | MusicDAWM | Stock Ardour 9.8 for Windows |
 |---|---|---|
-| Network | **Never contacts the internet.** The start-up announcement and update check is compiled out. | Checks ardour.org for news and updates. |
-| Packaging | Portable folder (zip) | Installer |
+| Name, icon, settings | MusicDAWM, own icon and splash screen, own settings folder `MusicDAWM9` | Ardour, `Ardour9` |
+| Network | **Never contacts the internet on its own.** The start-up announcement and update check is compiled out. Features you start yourself (for example the Freesound search in the import dialog) still go online. | Checks ardour.org for news and updates. |
+| Crash reports | None: no crash reporter is built in, nothing is sent anywhere | Official builds can write crash dumps |
+| Help → Report a Bug | Opens MusicDAWM's issue page on GitHub | Opens Ardour's bug tracker |
+| Packaging | Portable folder (zip), releases on GitHub | Installer |
 | Audio drivers | PortAudio: WASAPI, MME, DirectSound, WDM-KS. **No ASIO.** | Same, plus ASIO in official builds |
 | Plugin formats | VST3, VST2 and LV2. CLAP is planned (§6). | VST3, VST2, LV2 |
 | Bundled plugins | Ardour's own ACE plugins only: compressor (a-comp), delay, EQ, expander, reverb, FluidSynth player, Reasonable Synth | Also bundles third-party plugins: Harrison channel strip, several x42 plugins (including the AVL drum kit and a limiter) and a General MIDI synth |
@@ -64,10 +67,11 @@ The missing third-party plugins are a packaging choice for now, not a limitation
 | "Windows protected your PC" | Click **More info → Run anyway**, or unblock the zip and unzip again (§1). |
 | The program does not start at all, no message | Check Smart App Control (§1). |
 | No sound | In the Audio/MIDI Setup dialog, try the **MME** driver instead of WASAPI, and check that the sample rate matches your device's setting in Windows Sound settings. |
-| Text or button labels look garbled or empty | MusicDAWM draws text through fontconfig. That was tested under Wine but not yet on real Windows. To try the Windows font system instead, start the program from a command prompt with `set PANGOCAIRO_BACKEND=win32` and then `bin\ardour-<version>.exe`, and report which one looks right. |
+| Text or button labels look garbled or empty | MusicDAWM draws text through fontconfig. That was tested under Wine but not yet on real Windows. To try the Windows font system instead, start the program from a command prompt with `set PANGOCAIRO_BACKEND=win32` and then `bin\MusicDAWM.exe`, and report which one looks right. |
+| After an export, a window "Support Ardour Development" appears | That is Ardour's own request for donations: MusicDAWM is built on Ardour's work. Choose "Never ever ask me about this again" if you don't want to see it again. Nothing is sent anywhere. |
 | A plugin crashes the program on start | Use **Safe Mode**: tick "Safe Mode: Disable all Plugins" in the session dialog, open the session, then remove the plugin. |
 
-**Reporting a problem:** open an issue in the MusicDAWM repository with what you did, what you expected, and what happened. Please do not report MusicDAWM problems to the Ardour project: Ardour's developers cannot accept MusicDAWM's code (see `DECISIONS.md` D-010), and a problem may come from our changes rather than theirs. A problem you can also reproduce in stock Ardour 9.8 is fine to report to them in your own words.
+**Reporting a problem:** use **Help → Report a Bug**, which opens the MusicDAWM issue page, and describe what you did, what you expected, and what happened. Please do not report MusicDAWM problems to the Ardour project: Ardour's developers cannot accept MusicDAWM's code (see `DECISIONS.md` D-010), and a problem may come from our changes rather than theirs. A problem you can also reproduce in stock Ardour 9.8 is fine to report to them in your own words.
 
 ## 6. Coming next
 
@@ -75,7 +79,6 @@ None of these are available yet. Each work package adds its section to this guid
 
 | Feature | What it will do for you | Work package |
 |---|---|---|
-| MusicDAWM name and icon | Own name, own settings folder (no sharing with Ardour) | WP1 |
 | Songwriter layout and start screen | Recording controls hidden; "New song from WAV files" imports your Zoom R8 tracks aligned in one step | WP2 |
 | Drum Studio | Pick a style, get intro/verse/chorus/fill/ending grooves in 4 variations, played by a realistic drum kit with nothing to buy. Switch variations live with the keys 1–4 and I/V/C/B/F/E while the guitar plays, then replay, adjust and turn the result into editable MIDI. | WP3 |
 | Tap Tempo Map | Tap a key along with a recording played without a click, and the bar grid follows the performance | WP4 |
@@ -89,6 +92,6 @@ None of these are available yet. Each work package adds its section to this guid
 
 ## Appendix: command-line tools in `bin`
 
-The folder also contains Ardour's command-line session tools (`ardour9-new_session.exe`, `ardour9-new_empty_session.exe`, `ardour9-export.exe`, `ardour9-lua.exe`), which work as in Ardour.
+The folder also contains Ardour's command-line session tools under MusicDAWM names (`musicdawm9-new_session.exe`, `musicdawm9-new_empty_session.exe`, `musicdawm9-export.exe`, `musicdawm9-lua.exe`), which work as in Ardour.
 
-`ardour9-mother_smoke.exe` is MusicDAWM's own self-test. It builds a test session from seven WAV files with the exact track names of the "Mother" reference project, checks it, saves it and reopens it. It is meant for the build pipeline, not for your songs: it only accepts the generated test files from `tools/mother-smoke/make_wavs.py`.
+`musicdawm9-mother_smoke.exe` is MusicDAWM's own self-test. It builds a test session from seven WAV files with the exact track names of the "Mother" reference project, checks it, saves it and reopens it. It is meant for the build pipeline, not for your songs: it only accepts the generated test files from `tools/mother-smoke/make_wavs.py`.

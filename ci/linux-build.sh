@@ -16,8 +16,12 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
 	libcairomm-1.0-dev libpangomm-1.4-dev libwebsockets-dev libxml2-dev \
 	libcppunit-dev libreadline-dev libgtk2.0-dev libudev-dev libdbus-1-dev \
 	libopus-dev libogg-dev libflac-dev libvorbis-dev itstool gettext \
-	python3-numpy
+	python3-numpy ccache
 
-./waf configure --optimize --no-phone-home --test \
+# ccache (cache folder set by the workflow) makes rebuilds much faster.
+export CC="ccache gcc" CXX="ccache g++"
+ccache -z >/dev/null
+./waf configure --program-name=MusicDAWM --optimize --no-phone-home --test \
 	--with-backends=jack,alsa,pulseaudio,dummy
 ./waf build -j"$(nproc)"
+ccache -s | grep -iE "hits|misses|cache size" || true

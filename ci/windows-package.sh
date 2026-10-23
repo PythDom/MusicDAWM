@@ -15,8 +15,12 @@ mkdir -p bin
 find lib -maxdepth 2 -name '*.dll' -exec cp -n {} bin/ \;
 
 # The GUI and the plugin scanners must sit in bin: Ardour finds its data from
-# the folder above the executable's bin folder.
+# the folder above the executable's bin folder. The GUI gets the product name.
 cp -n lib/*/*.exe bin/
+cp lib/*/ardour-[0-9]*.exe bin/MusicDAWM.exe
+rm -f bin/ardour-[0-9]*.exe bin/hardour-[0-9]*.exe   # MusicDAWM.exe is the GUI; no headless server
+# Import libraries are for linking only.
+find . -name '*.dll.a' -delete
 
 # On Windows, Ardour looks for its configuration (theme, keybindings, menus)
 # only in share/<name>, not in etc/<name>.

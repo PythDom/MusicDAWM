@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="348" viewBox="0 0 400 348">
+  <!-- MusicDAWM splash screen. The icon is embedded by render.sh. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d2a4d"/>
+      <stop offset="1" stop-color="#0d1222"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="348" fill="url(#bg)"/>
+  <image href="icon-160.png" x="120" y="36" width="160" height="160"/>
+  <text x="200" y="250" text-anchor="middle" font-family="DejaVu Sans" font-weight="bold" font-size="40" fill="#f2f4f8">MusicDAWM</text>
+  <text x="200" y="282" text-anchor="middle" font-family="DejaVu Sans" font-size="15" fill="#9fb0d3">songwriting and arranging</text>
+  <text x="200" y="326" text-anchor="middle" font-family="DejaVu Sans" font-size="12" fill="#6f80a6">based on Ardour</text>
+</svg>

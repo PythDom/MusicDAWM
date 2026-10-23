@@ -647,6 +647,17 @@ About::About ()
 	set_translator_credits (t);
 	set_copyright (_("Copyright (C) 1999-2026 Paul Davis\n"));
 	set_license (gpl);
+#ifdef MUSICDAWM_VERSION
+	/* GPL: a modified version says so. Ardour's credits and website stay. */
+	set_name (X_("MusicDAWM"));
+	set_website (X_("https://ardour.org/"));
+	set_website_label (_("based on Ardour: http://ardour.org/"));
+	set_version ((string_compose(_("%1\nA modified version of Ardour %2%3\n(rev %4)\n%5%6"),
+				     MUSICDAWM_VERSION,
+				     VERSIONSTRING,
+				     codename,
+				     revision, cpu_arch, suffix)));
+#else
 	set_name (X_("Ardour"));
 	set_website (X_("https://ardour.org/"));
 	set_website_label (_("http://ardour.org/"));
@@ -654,6 +665,7 @@ About::About ()
 				     VERSIONSTRING,
 				     codename,
 				     revision, cpu_arch, suffix)));
+#endif
 
 	Gtk::Button* config_button = manage (new Button (_("Config")));
 

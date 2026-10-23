@@ -152,3 +152,9 @@ waf3-*
 
 # misc custom files git should ignore
 /local
+
+# MusicDAWM
+/.ccache/
+/ccache/
+/stage/
+/MusicDAWM-*-win64*
