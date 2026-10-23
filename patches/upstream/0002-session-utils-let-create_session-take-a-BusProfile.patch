@@ -1,9 +1,12 @@
 From 62d41731daf8dee107449126dcb756e9d2b803f9 Mon Sep 17 00:00:00 2001
-From: MusicDAWM <skycom@randdom.org>
+From: Claude <noreply@anthropic.com>
 Date: Thu, 22 Oct 2026 23:06:32 +0000
 Subject: [PATCH 2/2] session-utils: let create_session() take a BusProfile
 
 So that command-line tools can create sessions with a master bus.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_012woem7gpF63F73AqdVTFfU
 ---
  session_utils/common.cc | 4 ++--
  session_utils/common.h  | 3 ++-

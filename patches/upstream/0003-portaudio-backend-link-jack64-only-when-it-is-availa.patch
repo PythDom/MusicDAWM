@@ -1,11 +1,14 @@
 From 904f99b56c5e6fa261fd3d2a97b8c1dc9411eeb6 Mon Sep 17 00:00:00 2001
-From: MusicDAWM <skycom@randdom.org>
+From: Claude <noreply@anthropic.com>
 Date: Fri, 23 Oct 2026 00:53:00 +0000
 Subject: [PATCH] portaudio backend: link jack64 only when it is available
 
 Native (MSYS2) Windows builds take the mingw/win32 branch, which always
 linked jack64. MSYS2 has no jack64, so linking the backend failed.
 Check for the library at configure time and only link it when found.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_012woem7gpF63F73AqdVTFfU
 ---
  libs/backends/portaudio/wscript | 7 ++++++-
  1 file changed, 6 insertions(+), 1 deletion(-)
