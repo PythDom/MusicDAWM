@@ -1,0 +1,24 @@
+name: Import Ardour history (one-off)
+
+# Runs ci/import-ardour-history.sh on GitHub's network: the push is several
+# hundred MB. The script does nothing once Ardour's tree is present, and this
+# workflow is deleted after the import.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/import-ardour.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Merge Ardour history and push
+        run: bash ci/import-ardour-history.sh "${{ github.ref_name }}"
