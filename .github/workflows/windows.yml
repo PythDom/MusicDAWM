@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: "Publish a GitHub release v<VERSION> with the portable zip"
+        description: "Publish a GitHub release v<MUSICDAWM_VERSION> with the portable zip"
         type: boolean
         default: false
   push:
@@ -43,7 +43,7 @@ jobs:
           install: git base-devel zip
       - name: Version
         id: version
-        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(cat MUSICDAWM_VERSION)" >> "$GITHUB_OUTPUT"
       - name: Restore compiler cache
         uses: actions/cache@v4
         with:

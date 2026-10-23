@@ -2,7 +2,7 @@
 
 ## Version scheme
 
-- **MusicDAWM version:** `MAJOR.MINOR.PATCH` in the top-level `VERSION` file, for example `0.1.0`.
+- **MusicDAWM version:** `MAJOR.MINOR.PATCH` in the top-level `MUSICDAWM_VERSION` file, for example `0.1.0`. (Not `VERSION`: on Windows that name shadows the C++ header `<version>`.)
   - PATCH: fixes only.
   - MINOR: a new work package or feature.
   - MAJOR: 1 once the final "Mother" acceptance test (brief §6) passes.
@@ -16,7 +16,7 @@ The `Windows build` workflow builds the portable zip `MusicDAWM-<version>-win64.
 
 ## Making a release
 
-1. Raise `VERSION` in a commit and push it. Wait for both workflows to be green.
+1. Raise `MUSICDAWM_VERSION` in a commit and push it. Wait for both workflows to be green.
 2. On GitHub: **Actions → Windows build → Run workflow**, choose the branch, tick **publish**, and run.
 3. The workflow builds the commit again. If the build is green, it creates the release `v<version>` with the zip attached. The tag is created by GitHub on that commit.
 4. Add release notes to the release page: what changed, which work packages are included, and known issues.

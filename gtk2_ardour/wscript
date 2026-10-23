@@ -545,9 +545,10 @@ def configure(conf):
     conf.define('VERSIONSTRING', conf.env['VERSION'])
     conf.define('CODENAME', enoify(int(conf.env['MAJOR']), int(conf.env['MINOR'])))
     conf.env['define_key'] = ['VERSIONSTRING', 'CODENAME' ]
-    # MusicDAWM: the product version (top-level VERSION file), shown next to
+    # MusicDAWM: the product version (top-level MUSICDAWM_VERSION file; not
+    # "VERSION", which shadows <version> on case-insensitive file systems), shown next to
     # the Ardour version it is based on.
-    musicdawm_version = conf.path.parent.find_node ('VERSION')
+    musicdawm_version = conf.path.parent.find_node ('MUSICDAWM_VERSION')
     if musicdawm_version:
         conf.define('MUSICDAWM_VERSION', musicdawm_version.read().strip())
     conf.write_config_header('gtk2ardour-version.h')
