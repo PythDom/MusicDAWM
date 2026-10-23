@@ -445,8 +445,15 @@ write_midi_type0_data_to_one_file (Evoral::SMF* source, ImportStatus& status, si
 
 			/* we wrote something */
 
-			smfs->mark_streaming_write_completed (target_lock, timecnt_t (source->duration()));
-			smfs->round_length_to_bars (t);
+			if (source->duration_is_explicit ()) {
+				/* the file says where it ends (a delayed end-of-track):
+				 * keep that, e.g. a 6/8 loop of two bars is 6 beats.
+				 * The new file gets the same end-of-track. */
+				smfs->mark_streaming_write_completed (target_lock, timecnt_t (source->file_duration ()));
+			} else {
+				smfs->mark_streaming_write_completed (target_lock, timecnt_t (source->duration()));
+				smfs->round_length_to_bars (t);
+			}
 
 			/* the streaming write that we've just finished
 			 * only wrote data to the SMF object, which is
@@ -669,8 +676,13 @@ write_midi_type1_data_to_one_file (Evoral::SMF* source, ImportStatus& status, st
 			our_t = 0;
 		}
 
-		smfs->mark_streaming_write_completed (target_lock, timecnt_t (Temporal::Beats::ticks_at_rate (our_t, source->ppqn())));
-		smfs->round_length_to_bars (our_t);
+		if (written && source->duration_is_explicit ()) {
+			/* keep the length the file gives (see above) */
+			smfs->mark_streaming_write_completed (target_lock, timecnt_t (source->file_duration ()));
+		} else {
+			smfs->mark_streaming_write_completed (target_lock, timecnt_t (Temporal::Beats::ticks_at_rate (our_t, source->ppqn())));
+			smfs->round_length_to_bars (our_t);
+		}
 
 		if (written) {
 

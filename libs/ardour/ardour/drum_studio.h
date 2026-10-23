@@ -118,6 +118,7 @@ public:
 
 private:
 	static void load_library ();
+	static void play_timeline_too (std::shared_ptr<MidiTrack>);
 };
 
 /* Perform mode: live switching on the drum track, quantized, with fills that

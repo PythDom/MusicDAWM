@@ -115,15 +115,19 @@ describe (map<samplepos_t, int> const& m)
 	return out;
 }
 
-/* roll from 0 to `until`, ticking the performer; `actions` maps a time (s) to a cell */
+/* roll from 0 to `until`, ticking the performer; `actions` maps a time (s) to
+ * a cell; a negative time means: request it while stopped (it starts the transport) */
 static void
 perform (Session* s, DrumPerformer& perf, map<double, pair<string, int>> const& actions, double until)
 {
 	s->request_locate (0, false, MustStop);
 	Glib::usleep (300000);
+	auto next = actions.begin ();
+	for (; next != actions.end () && next->first < 0; ++next) {
+		perf.request (DrumStudio::part_index (next->second.first), next->second.second);
+	}
 	s->request_roll ();
 	wait_rolling (s, true);
-	auto next = actions.begin ();
 	while (s->transport_sample () < until * s->sample_rate ()) {
 		double const t = s->transport_sample () / (double)s->sample_rate ();
 		if (next != actions.end () && t >= next->first) {
@@ -216,13 +220,13 @@ main (int argc, char* argv[])
 	check (DrumStudio::bundled_kits ().empty () || track->the_instrument (), "plays through the bundled kit when it is installed");
 
 	/* 3. perform live, Rec Cues armed */
-	printf ("-- perform (real time, about 15 s)\n");
+	printf ("-- perform (real time, about 21 s)\n");
 	DrumPerformer perf (*s);
 	perf.set_quantize (DrumStudio::QuantizeBar);
 	perf.set_recording (true);
 	/* at 120 bpm 4/4 a bar is 2 s; each request comes mid-bar */
 	map<double, pair<string, int>> const show = {
-		{ 0.5, { "intro", 2 } },   /* -> bar 2 */
+		{ -1, { "intro", 2 } },    /* while stopped -> bar 1 */
 		{ 2.5, { "verse", 2 } },   /* -> bar 3 */
 		{ 6.5, { "fill", 3 } },    /* -> bar 5, back to the verse at bar 6 */
 		{ 12.5, { "chorus", 2 } }, /* -> bar 8 */
@@ -234,7 +238,7 @@ main (int argc, char* argv[])
 	/* 4. markers */
 	map<samplepos_t, int> const got = cue_markers (s);
 	map<samplepos_t, int> const want = {
-		{ bar (2), cell ("intro", 2) }, { bar (3), cell ("verse", 2) }, { bar (5), cell ("fill", 3) },
+		{ bar (1), cell ("intro", 2) }, { bar (3), cell ("verse", 2) }, { bar (5), cell ("fill", 3) },
 		{ bar (6), cell ("verse", 2) }, { bar (8), cell ("chorus", 2) }, { bar (10), cell ("ending", 1) },
 	};
 	printf ("   recorded: %s\n   expected: %s\n", describe (got).c_str (), describe (want).c_str ());
@@ -294,6 +298,8 @@ main (int argc, char* argv[])
 	 * (2 bars + 1 bar), chorus 9-10, ending from 10 (once) */
 	check (made == 7 && (int)rl->size () == 7, "flatten made 7 regions");
 	check (tb->trigger (cell ("verse", 2))->cue_isolated (), "slots no longer follow cues after flatten");
+	/* a track with clips would otherwise not play its regions (triggerbox-overrides-disk-monitoring) */
+	check (track->monitoring_state () & MonitoringDisk, "the drum track plays its regions");
 
 	check (rl->front ()->name () == "Rock Intro 2", string_compose ("regions are named by style, part and complexity (%1)", rl->front ()->name ()));
 	std::shared_ptr<MidiRegion> first, second;

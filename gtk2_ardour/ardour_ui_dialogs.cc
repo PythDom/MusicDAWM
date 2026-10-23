@@ -91,6 +91,7 @@
 #include "transport_masters_dialog.h"
 #include "trigger_page.h"
 #include "virtual_keyboard_window.h"
+#include "drum_studio_window.h"
 
 #include "pbd/i18n.h"
 
@@ -972,6 +973,12 @@ ARDOUR_UI::create_virtual_keyboard_window ()
 {
 	VirtualKeyboardWindow* vkbd = new VirtualKeyboardWindow ();
 	return vkbd;
+}
+
+DrumStudioWindow*
+ARDOUR_UI::create_drum_studio_window ()
+{
+	return new DrumStudioWindow ();
 }
 
 void

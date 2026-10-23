@@ -25,7 +25,10 @@
 #include "ardour/filesystem_paths.h"
 #include "ardour/location.h"
 #include "ardour/midi_region.h"
+#include "ardour/dB.h"
+#include "ardour/gain_control.h"
 #include "ardour/midi_track.h"
+#include "ardour/monitor_control.h"
 #include "ardour/playlist.h"
 #include "ardour/plugin_manager.h"
 #include "ardour/region_factory.h"
@@ -275,6 +278,18 @@ DrumStudio::load_style (std::shared_ptr<MidiTrack> track, string const& style_ke
 	return loaded == slot_count () ? 0 : -1;
 }
 
+void
+DrumStudio::play_timeline_too (std::shared_ptr<MidiTrack> track)
+{
+	/* With clips in its slots, automatic monitoring would never play the
+	 * track's regions (triggerbox-overrides-disk-monitoring), so flattened
+	 * drums would be silent. Input + disk plays the regions, the cues and a
+	 * live drum pad. */
+	if (track && track->monitoring_control ()->monitoring_choice () == MonitorAuto) {
+		track->monitoring_control ()->set_value (MonitorCue, PBD::Controllable::NoGroup);
+	}
+}
+
 std::shared_ptr<MidiTrack>
 DrumStudio::create_drum_track (Session& session, string const& style_key, std::shared_ptr<PluginInfo> instrument)
 {
@@ -297,6 +312,9 @@ DrumStudio::create_drum_track (Session& session, string const& style_key, std::s
 		return std::shared_ptr<MidiTrack> ();
 	}
 	std::shared_ptr<MidiTrack> track = tl.front ();
+	play_timeline_too (track);
+	/* the AVL kits peak above 0 dBFS on accented crashes at unity gain */
+	track->gain_control ()->set_value (dB_to_coefficient (-6.f), PBD::Controllable::NoGroup);
 	if (load_style (track, style_key)) {
 		warning << string_compose (_("Drum Studio: not all grooves of '%1' could be loaded"), style_key) << endmsg;
 	}
@@ -385,7 +403,9 @@ DrumStudio::flatten (Session& session, std::shared_ptr<MidiTrack> track, timepos
 
 	session.begin_reversible_command (_("flatten drum performance"));
 	pl->clear_changes ();
-	int made = 0;
+	int       made = 0;
+	timepos_t first;
+	timepos_t last;
 
 	for (size_t i = 0; i < cues.size (); ++i) {
 		int const cue = cues[i]->cue_id ();
@@ -417,13 +437,21 @@ DrumStudio::flatten (Session& session, std::shared_ptr<MidiTrack> track, timepos
 				break;
 			}
 			/* e.g. "Rock Verse 2" (the slot's own name follows the region it was loaded from) */
-			r->set_name (st ? string_compose (X_("%1 %2 %3"), st->name, parts ()[part].name, complexity) : t->name ());
+			string name = st ? string_compose (X_("%1 %2 %3"), st->name, parts ()[part].name, complexity) : t->name ();
+			std::replace (name.begin (), name.end (), '/', '-'); /* "6/8" is not a valid region name */
+			r->set_name (name);
 			timecnt_t len (clip, pos);
 			if (pos + len > seg_end) {
 				len = pos.distance (seg_end); /* last copy ends where the next cell starts */
 			}
 			r->set_length (len);
 			pl->add_region (r, pos);
+			if (made == 0 || pos < first) {
+				first = pos;
+			}
+			if (made == 0 || pos + len > last) {
+				last = pos + len;
+			}
 			++made;
 			if (!part_loops (part)) {
 				break; /* an ending plays once */
@@ -434,8 +462,14 @@ DrumStudio::flatten (Session& session, std::shared_ptr<MidiTrack> track, timepos
 	session.add_command (new StatefulDiffCommand (pl));
 	session.commit_reversible_command ();
 
+	if (made > 0) {
+		/* so that export and "zoom to session" include the drums */
+		session.maybe_update_session_range (first, last);
+	}
+
 	/* the regions now play the performance; stop the slots from playing it too */
 	follow_cues (track, false);
+	play_timeline_too (track);
 	return made;
 }
 
@@ -497,6 +531,12 @@ DrumPerformer::request (int part_index, int complexity)
 		/* audition: start the groove now; the trigger starts the transport */
 		std::shared_ptr<MidiTrack> track = DrumStudio::find_drum_track (_session);
 		if (track && track->triggerbox ()) {
+			if (TriggerBox::cue_recording ()) {
+				/* not a cue, so Rec Cues would miss it: record where it starts.
+				 * The process thread writes cue records only while rolling. */
+				CueRecord cr (slot, _session.transport_sample ());
+				TriggerBox::cue_records.write (&cr, 1);
+			}
 			track->triggerbox ()->bang_trigger_at (slot);
 			_playing = slot;
 		}
