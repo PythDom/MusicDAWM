@@ -58,4 +58,5 @@ jobs:
             windows-build.log
             msys2-missing.txt
             ardour/build/config.log
+            ardour/build.log
           if-no-files-found: ignore

@@ -56,5 +56,10 @@ if ! python3 ./waf configure --check-c-compiler=gcc --check-cxx-compiler=g++ \
 	tail -n 80 build/config.log
 	exit 1
 fi
-python3 ./waf build -j"$(nproc)"
-python3 ./waf install
+if ! python3 ./waf build -j"$(nproc)" > build.log 2>&1; then
+	echo "---- first errors in build.log"
+	grep -n -m 30 -E "error:|Error [0-9]|cannot find|undefined reference" build.log || tail -n 60 build.log
+	exit 1
+fi
+tail -n 3 build.log
+python3 ./waf install > install.log 2>&1 || { tail -n 40 install.log; exit 1; }
