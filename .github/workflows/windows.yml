@@ -1,15 +1,14 @@
 name: Windows build
 
-# Phase 0 spike: native MSYS2 (UCRT64) build of Ardour on a Windows runner. See PHASE0.md section 2.2.
+# Native MSYS2 (UCRT64) build of MusicDAWM on a Windows runner, packaged as a
+# portable folder, then checked with the Mother smoke test. See DECISIONS.md D-007.
 on:
   workflow_dispatch:
   push:
-    paths:
-      - ".github/workflows/windows.yml"
-      - "ci/ardour-ref"
-      - "ci/windows-*.sh"
-      - "patches/**"
-      - "tools/**"
+    paths-ignore:
+      - "**.md"
+      - ".github/workflows/linux.yml"
+      - "ci/linux-*.sh"
 
 concurrency:
   group: windows-${{ github.ref }}
@@ -23,18 +22,22 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
+      - name: Keep LF line endings
+        shell: pwsh
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # Ardour's build takes its version from git describe
+          fetch-tags: true
       - uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
           update: true
           install: git base-devel
-      - name: Fetch Ardour
-        run: git -c core.autocrlf=false clone --depth 1 --branch "$(cat ci/ardour-ref)" https://github.com/Ardour/ardour.git ardour
       - name: Build
         id: build
-        run: bash ci/windows-msys2-build.sh ardour stage 2>&1 | tee windows-build.log; exit ${PIPESTATUS[0]}
-      - name: Bundle runtime DLLs
+        run: bash ci/windows-msys2-build.sh stage 2>&1 | tee windows-build.log; exit ${PIPESTATUS[0]}
+      - name: Make portable folder
         run: bash ci/windows-package.sh stage
       - name: Mother smoke test (bundle only, MSYS2 off PATH)
         run: |
@@ -48,7 +51,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         with:
-          name: ardour-windows-x64-spike
+          name: musicdawm-windows-x64-portable
           path: stage
       - uses: actions/upload-artifact@v4
         if: always()
@@ -57,6 +60,6 @@ jobs:
           path: |
             windows-build.log
             msys2-missing.txt
-            ardour/build/config.log
-            ardour/build.log
+            build/config.log
+            build.log
           if-no-files-found: ignore

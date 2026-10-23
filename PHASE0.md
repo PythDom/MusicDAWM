@@ -114,6 +114,8 @@ The ARA mapping fits Ardour's existing model, without the "infeasible in 3 month
 
 ## 6. Needed from the user before WP1
 
+*Answered on 2026-10-23; see §8 and DECISIONS.md D-001 to D-013.*
+
 1. **Product name** and whether Linux builds matter (brief §9 Q1).
 2. **Melodyne edition and version** (§9 Q2).
 3. **Code-signing certificate:** yes or no (§9 Q3).
@@ -135,3 +137,27 @@ The ARA mapping fits Ardour's existing model, without the "infeasible in 3 month
 | `.github/workflows/windows.yml`, `ci/windows-*.sh` | Windows MSYS2 build, bundle, Mother smoke test (green) |
 | `patches/upstream/` | three upstream-ready Ardour patches (AVX-512 find_peaks, session-utils BusProfile, portaudio jack64) |
 | `tools/mother-smoke/` | WAV generator and headless "Mother" test |
+
+## 8. Addendum (2026-10-23): retried after the network was opened
+
+The user allowed the hosts that were blocked and answered §6. Results:
+
+| Blocked step | Outcome |
+|---|---|
+| Ardour's official Windows build tooling | **Not public.** `git.ardour.org` lists four public repositories (`ardour`, `ardour-tutorial`, `livetrax`, `manual`); `ardour-build-tools` asks for a login. The last public copy of the script left Ardour's tree in October 2014, before Ardour bundled its own GTK. The MSYS2 build stays the Windows path (D-007). |
+| Inspect the Windows bundle | Downloaded. The GUI (`lib/ardour9/ardour-9.8.0.exe`) was not in `bin`, where Ardour expects it. The PortAudio backend has **WASAPI, WDM-KS, DirectSound and MME, no ASIO**. That is enough for playback, since nothing is recorded in the DAW. |
+| GUI start | **Started under Wine** (not real Windows) with a virtual display. Three packaging gaps were found and fixed (`ci/windows-package.sh`, D-013): theme and keybindings must be in `share/ardour9`, the clearlooks engine in `lib/gtk-2.0/engines`, and the ArdourSans font needs the fontconfig backend. With the fixes the welcome screen and audio setup dialog render correctly. Opening a session stops at the audio setup dialog, because Wine here has no sound device; that step needs the user's machine. Under Wine, the Windows smoke-test executable passed again (28/28). |
+| Upstream discussion | **Not possible.** Ardour's development page: "if you use an LLM (Claude, Codex, CoPilot etc. etc) to create code, it cannot be included in Ardour". The reason given is that LLM-generated code cannot be copyrighted in the USA (Thaler v. Perlmutter, March 2025) and the GPL relies on copyright. The forum's terms also forbid posting LLM-generated material. So the brief's "upstream first" rule is replaced by D-010. Upstream's last word on ARA (Oct 2025): "being looked into, but not on the current plans". Upstream's DAWproject threads are from 2023, with no implementation. |
+| Trademark policy | None published (ardour.org, forum searched). The name MusicDAWM avoids the question; we do not use Ardour's logo as our branding (D-004). |
+| Drum kit licences | AVL Drumkits: CC-BY-SA 3.0, "free to distribute or sell any music you create with these kits without attribution". DrumGizmo kits: CC-BY 4.0, and songs that credit performers must also credit the kit. Choice: AVL via the x42-avldrums plugin (D-011). |
+| Melodyne essential and ARA | Celemony: essential works "as a plug-in in your DAW or under ARA". It edits monophonic material only (D-012). |
+
+**Copyright note for the user.** Ardour's reasoning also applies to this fork. Under current US case law, the parts of MusicDAWM that I generate may not be protected by copyright, so the GPL cannot be enforced on those parts. That does not stop you from using, building or sharing MusicDAWM. Ardour's own code stays GPL. It only matters if you want to stop someone from reusing the new code in a closed product. Every commit names Claude as co-author, so the origin of the code is always visible. (This is a summary of a public statement and of case law as Ardour describes it, not legal advice.)
+
+**Code signing (question 3).** It is not needed for one user and a portable folder:
+- When the zip comes from a browser download, Windows marks it, and SmartScreen shows "Windows protected your PC" the first time each program starts ("More info" → "Run anyway"). To avoid that, right-click the zip → Properties → **Unblock** before extracting, or run `Unblock-File` in PowerShell. Builds you copy over yourself are not marked.
+- One case blocks unsigned programs with no override: **Smart App Control** on Windows 11, if it is *On*. Check under Windows Security → App & browser control → Smart App Control. If it is On, turning it off cannot be undone without resetting Windows.
+- If a certificate is ever needed (sharing the program with others, or Smart App Control): **SignPath Foundation** signs open-source builds for free, but the repository must be public under an OSI licence. **Azure Artifact Signing** costs about 10 USD a month, but individuals are accepted only in the USA and Canada. A certificate from a certificate authority (OV) costs a few hundred USD a year. None of them silences SmartScreen immediately; reputation builds up over time.
+- Recommendation: no certificate now. Check the Smart App Control setting once.
+
+**Repository layout since 2026-10-23:** Ardour's full history (tag `9.8`) is merged into this repository (D-006). The three patches in `patches/upstream/` became ordinary commits, and CI builds the checked-out tree instead of cloning Ardour.

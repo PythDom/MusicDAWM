@@ -1,15 +1,14 @@
 name: Linux build
 
-# Builds Ardour (tag in ci/ardour-ref) with our upstream patches, runs the unit tests and the Mother smoke test.
+# Builds MusicDAWM on Linux and runs the unit tests and the Mother smoke test.
+# Not a shipped platform (DECISIONS.md D-009): the fastest place to run the tests.
 on:
   workflow_dispatch:
   push:
-    paths:
-      - ".github/workflows/linux.yml"
-      - "ci/ardour-ref"
-      - "ci/linux-*.sh"
-      - "patches/**"
-      - "tools/**"
+    paths-ignore:
+      - "**.md"
+      - ".github/workflows/windows.yml"
+      - "ci/windows-*.sh"
 
 concurrency:
   group: linux-${{ github.ref }}
@@ -21,18 +20,18 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch Ardour
-        run: git clone --depth 1 --branch "$(cat ci/ardour-ref)" https://github.com/Ardour/ardour.git ardour
+        with:
+          fetch-depth: 0     # Ardour's build takes its version from git describe
+          fetch-tags: true
       - name: Build
         id: build
-        run: bash ci/linux-build.sh ardour
+        run: bash ci/linux-build.sh
       - name: Unit tests
-        run: bash ci/linux-tests.sh ardour 2>&1 | tee linux-tests.log; exit ${PIPESTATUS[0]}
+        run: bash ci/linux-tests.sh 2>&1 | tee linux-tests.log; exit ${PIPESTATUS[0]}
       - name: Mother smoke test
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           python3 tools/mother-smoke/make_wavs.py "$RUNNER_TEMP/wavs"
-          cd ardour
           export TOP="$PWD"; . build/gtk2_ardour/ardev_common_waf.sh
           build/session_utils/ardour9-mother_smoke "$RUNNER_TEMP/mother" "$RUNNER_TEMP"/wavs/*.wav
           build/session_utils/ardour9-export -o "$RUNNER_TEMP/mother-mix.wav" "$RUNNER_TEMP/mother" Mother

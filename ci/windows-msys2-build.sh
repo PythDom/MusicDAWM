@@ -1,17 +1,12 @@
 #!/bin/bash
-# Phase 0 spike: native Windows x64 build of upstream Ardour in an MSYS2 shell (UCRT64).
-# This is the fallback path. The official path (ardour-build-tools/win/x-mingw.sh,
-# cross-compiling from Linux) is hosted on git.ardour.org, which our cloud dev
-# environment cannot reach. See PHASE0.md section 2.2.
-# Applies our upstream-candidate patches and adds the Mother smoke test tool,
-# like ci/linux-build.sh. Installs into <stage-dir> (default: ./stage).
-# Usage (inside an MSYS2 UCRT64 or MINGW64 shell):
-#   ci/windows-msys2-build.sh <ardour-src-dir> [<stage-dir>]
+# Native Windows x64 build of MusicDAWM in an MSYS2 shell (UCRT64).
+# Ardour's own Windows build tooling (ardour-build-tools) is not public, so this
+# is the reproducible route; see DECISIONS.md D-007.
+# Installs into <stage-dir> (default: ./stage).
+# Usage (inside an MSYS2 UCRT64 or MINGW64 shell): ci/windows-msys2-build.sh [<stage-dir>]
 set -uo pipefail
 
-SRC=${1:?ardour source dir}
-STAGE=$(cygpath -m "$(realpath -m "${2:-stage}")")
-HERE=$(cd "$(dirname "$0")/.." && pwd)
+STAGE=$(cygpath -m "$(realpath -m "${1:-stage}")")
 P=${MINGW_PACKAGE_PREFIX:?run inside an MSYS2 UCRT64 or MINGW64 shell}
 
 PKGS="toolchain gcc pkgconf python boost glibmm libsndfile curl libarchive liblo taglib
@@ -33,11 +28,7 @@ set -e
 echo "toolchain: CC=$(command -v gcc || echo none) PY=$(command -v python3 || echo none)"
 gcc --version | head -1
 python3 -c 'import sys; print("python", sys.version.split()[0], sys.platform, sys.executable)'
-cd "$SRC"
-for p in "$HERE"/patches/upstream/*.patch; do
-	git apply --verbose "$p"
-done
-cp "$HERE/tools/mother-smoke/mother_smoke.cc" session_utils/
+cd "$(dirname "$0")/.."
 
 # waf would otherwise try MSVC from the runner image first (hence also the
 # --check-c*-compiler options). Under a native Windows Python it needs full

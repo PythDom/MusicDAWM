@@ -62,6 +62,19 @@ fixup_bundle_environment (int, char* [], string & localedir)
 	// Unset GTK2_RC_FILES so that only ardour specific files are loaded
 	Glib::unsetenv ("GTK2_RC_FILES");
 
+	/* With MSYS2's pango, fonts registered through GDI (AddFontResource, see
+	 * load_custom_fonts) were not used (seen under Wine): ArdourSans was missing.
+	 * When the bundle ships fontconfig's configuration, use the fontconfig
+	 * backend instead, which load_custom_fonts also supports.
+	 */
+	{
+		std::string fc_dir = Glib::build_filename (windows_package_directory_path (), "etc", "fonts");
+		if (Glib::getenv ("PANGOCAIRO_BACKEND").empty () && Glib::file_test (Glib::build_filename (fc_dir, "fonts.conf"), Glib::FILE_TEST_EXISTS)) {
+			Glib::setenv ("PANGOCAIRO_BACKEND", "fc", true);
+			Glib::setenv ("FONTCONFIG_PATH", fc_dir, true);
+		}
+	}
+
 	std::string path;
 
 	if (ARDOUR::translations_are_enabled ()) {

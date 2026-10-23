@@ -1,11 +1,9 @@
 #!/bin/bash
-# Phase 0: build upstream Ardour on Ubuntu 24.04 and run its unit tests.
-# Applies our upstream-candidate patches and adds the Mother smoke test tool.
-# Usage: ci/linux-build.sh <ardour-src-dir>
+# Build MusicDAWM (this repository's Ardour tree) on Ubuntu 24.04, with unit tests.
+# Usage: ci/linux-build.sh
 set -euo pipefail
 
-SRC=${1:?ardour source dir}
-HERE=$(cd "$(dirname "$0")/.." && pwd)
+cd "$(dirname "$0")/.."
 
 sudo apt-get update -qq
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
@@ -18,12 +16,6 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
 	libcppunit-dev libreadline-dev libgtk2.0-dev libudev-dev libdbus-1-dev \
 	libopus-dev libogg-dev libflac-dev libvorbis-dev itstool gettext \
 	python3-numpy
-
-cd "$SRC"
-for p in "$HERE"/patches/upstream/*.patch; do
-	git apply --verbose "$p"
-done
-cp "$HERE/tools/mother-smoke/mother_smoke.cc" session_utils/
 
 ./waf configure --optimize --no-phone-home --test \
 	--with-backends=jack,alsa,pulseaudio,dummy

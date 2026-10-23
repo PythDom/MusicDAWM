@@ -1,9 +1,9 @@
 #!/bin/bash
 # Run Ardour's unit-test suites; each suite reports on its own and the script
-# fails if any suite fails. Usage: ci/linux-tests.sh <ardour-src-dir>
+# fails if any suite fails. Usage: ci/linux-tests.sh
 set -uo pipefail
 
-SRC=${1:?ardour source dir}
+SRC=$(cd "$(dirname "$0")/.." && pwd)
 
 # libpbd's StringConvertTest needs locales with a comma decimal mark.
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq locales

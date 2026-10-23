@@ -6,9 +6,9 @@
  * at 292 s with different gains on each half, a clip gain of +15.16 dB on
  * track 1, and track 4 muted. Saves, closes, reopens, and checks every value.
  *
- * Build: copy into <ardour>/session_utils/, apply
- * patches/upstream/0002-session-utils-let-create_session-take-a-BusProfile.patch, and run ./waf
- * (it becomes <prefix>-mother_smoke). Usage: <prefix>-mother_smoke <session-dir> <wav>...
+ * Built with the other session utilities as <prefix>-mother_smoke.
+ * Test WAVs: tools/mother-smoke/make_wavs.py.
+ * Usage: <prefix>-mother_smoke <session-dir> <wav>...
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
