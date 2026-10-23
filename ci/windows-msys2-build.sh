@@ -3,16 +3,21 @@
 # This is the fallback path. The official path (ardour-build-tools/win/x-mingw.sh,
 # cross-compiling from Linux) is hosted on git.ardour.org, which our cloud dev
 # environment cannot reach. See PHASE0.md section 2.2.
-# Usage (inside an MSYS2 UCRT64 or MINGW64 shell): ci/windows-msys2-build.sh <ardour-src-dir>
+# Applies our upstream-candidate patches and adds the Mother smoke test tool,
+# like ci/linux-build.sh. Installs into <stage-dir> (default: ./stage).
+# Usage (inside an MSYS2 UCRT64 or MINGW64 shell):
+#   ci/windows-msys2-build.sh <ardour-src-dir> [<stage-dir>]
 set -uo pipefail
 
 SRC=${1:?ardour source dir}
+STAGE=$(cygpath -m "$(realpath -m "${2:-stage}")")
+HERE=$(cd "$(dirname "$0")/.." && pwd)
 P=${MINGW_PACKAGE_PREFIX:?run inside an MSYS2 UCRT64 or MINGW64 shell}
 
 PKGS="toolchain gcc pkgconf python boost glibmm libsndfile curl libarchive liblo taglib
 vamp-plugin-sdk rubberband fftw aubio libsamplerate lv2 serd sord sratom lilv
 cairomm pangomm libwebsockets libxml2 cppunit portaudio libusb gtk2 libogg flac
-libvorbis opus soundtouch fontconfig"
+libvorbis opus soundtouch fontconfig python-numpy"
 
 # Install each package on its own so the log shows exactly which ones MSYS2 lacks.
 missing=""
@@ -29,6 +34,11 @@ echo "toolchain: CC=$(command -v gcc || echo none) PY=$(command -v python3 || ec
 gcc --version | head -1
 python3 -c 'import sys; print("python", sys.version.split()[0], sys.platform, sys.executable)'
 cd "$SRC"
+for p in "$HERE"/patches/upstream/*.patch; do
+	git apply --verbose "$p"
+done
+cp "$HERE/tools/mother-smoke/mother_smoke.cc" session_utils/
+
 # waf would otherwise try MSVC from the runner image first (hence also the
 # --check-c*-compiler options). Under a native Windows Python it needs full
 # Windows paths ("gcc" alone is "not executable").
@@ -41,9 +51,10 @@ echo "CC=$CC CXX=$CXX"
 if ! python3 ./waf configure --check-c-compiler=gcc --check-cxx-compiler=g++ \
 	--dist-target=mingw --optimize --cxx17 --no-phone-home --no-lrdf --no-dr-mingw \
 	--with-backends=dummy,portaudio \
-	--prefix="$MINGW_PREFIX" --libdir="$MINGW_PREFIX/lib"; then
+	--prefix="$STAGE" --libdir="$STAGE/lib"; then
 	echo "---- tail of build/config.log"
 	tail -n 80 build/config.log
 	exit 1
 fi
 python3 ./waf build -j"$(nproc)"
+python3 ./waf install

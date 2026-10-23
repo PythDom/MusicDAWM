@@ -8,6 +8,8 @@ on:
       - ".github/workflows/windows.yml"
       - "ci/ardour-ref"
       - "ci/windows-*.sh"
+      - "patches/**"
+      - "tools/**"
 
 concurrency:
   group: windows-${{ github.ref }}
@@ -30,7 +32,24 @@ jobs:
       - name: Fetch Ardour
         run: git clone --depth 1 --branch "$(cat ci/ardour-ref)" https://github.com/Ardour/ardour.git ardour
       - name: Build
-        run: bash ci/windows-msys2-build.sh ardour 2>&1 | tee windows-build.log; exit ${PIPESTATUS[0]}
+        id: build
+        run: bash ci/windows-msys2-build.sh ardour stage 2>&1 | tee windows-build.log; exit ${PIPESTATUS[0]}
+      - name: Bundle runtime DLLs
+        run: bash ci/windows-package.sh stage
+      - name: Mother smoke test (bundle only, MSYS2 off PATH)
+        run: |
+          T=$(cygpath -u "$RUNNER_TEMP")
+          python3 tools/mother-smoke/make_wavs.py "$T/wavs"
+          wavs=(); for f in "$T"/wavs/*.wav; do wavs+=("$(cygpath -m "$f")"); done
+          export PATH="$PWD/stage/bin:/usr/bin:/c/Windows/System32:/c/Windows"  # /usr/bin: MSYS tools only, no UCRT64 DLLs
+          stage/bin/ardour9-mother_smoke.exe "$(cygpath -m "$T/mother")" "${wavs[@]}"
+          stage/bin/ardour9-export.exe -o "$(cygpath -m "$T/mother-mix.wav")" "$(cygpath -m "$T/mother")" Mother
+          ls -l "$T/mother-mix.wav"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        with:
+          name: ardour-windows-x64-spike
+          path: stage
       - uses: actions/upload-artifact@v4
         if: always()
         with:
