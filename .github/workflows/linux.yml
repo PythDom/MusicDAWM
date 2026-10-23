@@ -1,0 +1,46 @@
+name: Linux build
+
+# Builds Ardour (tag in ci/ardour-ref) with our upstream patches, runs the unit tests and the Mother smoke test.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/linux.yml"
+      - "ci/ardour-ref"
+      - "ci/linux-*.sh"
+      - "patches/**"
+      - "tools/**"
+
+concurrency:
+  group: linux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch Ardour
+        run: git clone --depth 1 --branch "$(cat ci/ardour-ref)" https://github.com/Ardour/ardour.git ardour
+      - name: Build
+        id: build
+        run: bash ci/linux-build.sh ardour
+      - name: Unit tests
+        run: bash ci/linux-tests.sh ardour 2>&1 | tee linux-tests.log; exit ${PIPESTATUS[0]}
+      - name: Mother smoke test
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          python3 tools/mother-smoke/make_wavs.py "$RUNNER_TEMP/wavs"
+          cd ardour
+          export TOP="$PWD"; . build/gtk2_ardour/ardev_common_waf.sh
+          build/session_utils/ardour9-mother_smoke "$RUNNER_TEMP/mother" "$RUNNER_TEMP"/wavs/*.wav
+          build/session_utils/ardour9-export -o "$RUNNER_TEMP/mother-mix.wav" "$RUNNER_TEMP/mother" Mother
+          python3 -c "import wave,sys; w=wave.open(sys.argv[1]); n=w.getnframes()/w.getframerate(); print('export', n, 's'); sys.exit(abs(n-343) > 0.01)" "$RUNNER_TEMP/mother-mix.wav"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-logs
+          path: linux-tests.log
+          if-no-files-found: ignore
+
