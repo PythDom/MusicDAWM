@@ -37,8 +37,14 @@ bash ci/ardour-tag.sh
 CC="$(cygpath -m "$(command -v gcc).exe")" CXX="$(cygpath -m "$(command -v g++).exe")"
 # ccache (cache folder set by the workflow) cuts rebuilds from about 2 hours.
 if command -v ccache >/dev/null; then
-	CCACHE="$(cygpath -m "$(command -v ccache).exe")"
-	CC="$CCACHE $CC" CXX="$CCACHE $CXX"
+	# Masquerade (ccache.exe copied as gcc.exe): waf moves every argument
+	# after the first into an @response file on Windows, so "ccache gcc"
+	# would hide the compiler inside it. The copies find the real gcc on PATH.
+	CCBIN=/tmp/ccache-bin
+	mkdir -p "$CCBIN"
+	cp "$(command -v ccache).exe" "$CCBIN/gcc.exe"
+	cp "$(command -v ccache).exe" "$CCBIN/g++.exe"
+	CC="$(cygpath -m "$CCBIN/gcc.exe")" CXX="$(cygpath -m "$CCBIN/g++.exe")"
 	ccache -z >/dev/null
 fi
 export CC CXX
