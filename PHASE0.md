@@ -1,14 +1,14 @@
 # Phase 0 report: base confirmation spike
 
-*2026-10-22. Time box: 3 days. Time used so far: about 1 day.*
+*2026-10-22 to 2026-10-23. Time box: 3 days. Time used: about 1 day (most of it waiting on Windows CI builds).*
 
 ## 1. Summary
 
 | Question | Answer |
 |---|---|
-| Does Ardour build and pass its tests on Linux? | **Yes.** Ardour 9.8 builds in 27.5 min on 4 cores. All unit-test suites pass after one small upstream fix (§2.1). |
-| Does a session shaped like "Mother" work? | **Yes, headless.** 7 BWF-aligned WAV tracks, a split at 292 s, +15.16 dB clip gain and a muted track all survive save and reopen. 26/26 checks pass, and the WAV export is 343 s long (§2.3). |
-| Is there a Windows binary that runs "Mother"? | **Not yet.** The official cross-build tooling cannot be reached from this environment. The MSYS2 fallback on GitHub Actions now finds 33 of 34 packages, and the missing one (`suil`) is bundled with Ardour. Build status: see §2.2. |
+| Does Ardour build and pass its tests on Linux? | **Yes.** Ardour 9.8 builds in 27.5 min locally (4 cores) and about 40 min on CI. All four unit-test suites pass after one small upstream fix (§2.1). |
+| Does a session shaped like "Mother" work? | **Yes, on Linux and on Windows (headless).** 7 BWF-aligned WAV tracks, a split at 292 s, +15.16 dB clip gain and a muted track all survive save and reopen. 26/26 checks pass on both, and the WAV export is 343.0 s long (§2.3). |
+| Is there a Windows binary that runs "Mother"? | **Yes, headless; GUI not yet verified.** A native MSYS2 build on GitHub Actions produces a self-contained x64 bundle. It runs the Mother test and the export with no MSYS2 DLLs on `PATH` (§2.2). The GUI has not been launched on Windows yet; that is the first WP1 task. |
 | Is ARA2 in Ardour feasible within 3 months? | **Yes, with one licence question.** Ardour 9's per-region plugin chain (*Region FX*) maps almost one-to-one onto ARA playback regions (§3). The ARA SDK is Apache-2.0, which is compatible with GPLv3 but not GPLv2 (§4). |
 | **Decision** | **Option A: fork Ardour, based on 9.8.** See §5. |
 
@@ -23,11 +23,13 @@
 
 | Suite | Result | Note |
 |---|---|---|
-| libpbd | 41 run, 2 fail → **environment** | `StringConvertTest` needs the fr_FR/de_DE/nl_NL locales; the container has only C/POSIX. CI installs no locales either. Not a code issue. |
+| libpbd | **OK (41)** with locales installed | Without the fr_FR/de_DE/nl_NL locales, 2 `StringConvertTest` cases fail. That is an environment issue; CI installs the locales (`ci/linux-tests.sh`). |
 | libevoral | OK | The script also wants `lcov`, which is optional. |
 | libaudiographer | OK (45) | |
 | libardour | 25 run, 1 fail → **upstream bug, fixed** | `FPUTest::avx512fTest`: see below. With the fix: **OK (25)**. |
 | libmidi++2 | not run | Its `run-tests.sh` does not set `LD_LIBRARY_PATH` (an upstream script issue, not a test failure). |
+
+- **CI:** the `Linux build` workflow (GitHub Actions, Ubuntu 24.04) applies our patches, builds in about 40 min, runs the four suites and the Mother smoke test. **Green.**
 
 **Upstream bug found:** `x86_avx512f_find_peaks()` widens the 1, 4 or 8 leftover samples into a 16-lane register, and the unused lanes (zero) take part in min/max. A buffer of only positive samples then reports a minimum of 0. This only affects machines with AVX-512, which includes many current desktop CPUs. The fix uses masked min/max (12 lines) and is in `patches/upstream/0001-…patch`, ready to send upstream. CI applies it.
 
@@ -36,23 +38,32 @@
 **Official path (cross-compile from Linux with MinGW): blocked in this environment.**
 Ardour's Windows dependency-stack script moved out of the main repository into `ardour-build-tools`, which is hosted on `git.ardour.org`. This cloud environment's network policy denies `git.ardour.org` and most other source hosts (`ardour.org`, `download.gnome.org`, `ftp.gnu.org`, `repo.msys2.org`). The MinGW-w64 toolchain itself installs fine (GCC 13). To use the official path, either add those hosts to the environment's allowed domains, or run it on a machine or CI runner with open network access.
 
-**Fallback (native MSYS2 build on a GitHub Actions Windows runner)**, `ci/windows-msys2-build.sh`:
+**Fallback that works: a native MSYS2 (UCRT64) build on a GitHub Actions Windows runner.** Scripts: `ci/windows-msys2-build.sh` and `ci/windows-package.sh`; workflow: `Windows build`.
 
-| Run | Result | Learned |
+| Attempt | Result | Fix |
 |---|---|---|
-| 1 (MINGW64) | configure failed | 14 of 34 packages missing from the old MINGW64 repository. waf picked up MSVC from the runner image. |
-| 2 (UCRT64) | configure failed | All packages present except `suil`, which Ardour bundles anyway. waf still found no C compiler. |
-| 3 (UCRT64, toolchain diagnostics) | *pending* | |
+| 1 | configure: 14 packages missing; waf picked up MSVC | Moved from the old MINGW64 package set to UCRT64, MSYS2's current default |
+| 2–5 | configure: `gcc` "not executable", then MSVC flags passed to g++ | Pass full Windows compiler paths, plus `--check-c-compiler=gcc --check-cxx-compiler=g++` |
+| 6 | configure: no `exchndl.h` | `--no-dr-mingw` (Dr. MinGW crash handler, optional) |
+| 7 | compile: `char8_t` errors in libardour | `--cxx17`: MSYS2 ships **GCC 16, which defaults to C++20**, where `u8""` literals have a different type |
+| 8 | link: portaudio backend needs `jack64` | **Upstream patch 0003**: link `jack64` only if configure finds it |
+| 9 | patches did not apply | Windows git checked Ardour out with CRLF line endings; clone with `core.autocrlf=false`, plus `.gitattributes` |
+| **10** | **success** | Build 1 h 48 min (1851 steps); bundle 421 MB unpacked, 116 MB zipped (163 files in `bin`) |
 
-A Windows binary that opens "Mother" is the one Phase 0 deliverable still open. It is a build-plumbing problem, not a code problem: Ardour ships official Windows builds from this same source. If the MSYS2 route stalls, WP1 should reproduce the official MinGW cross-build on a runner that can reach `git.ardour.org`.
+- **Every MSYS2 package was found** except `liblrdf` (dropped with `--no-lrdf`; it only provides LADSPA metadata) and `suil` (Ardour bundles its own).
+- **Audio backends built:** PortAudio and Dummy. Not yet checked: which host APIs MSYS2's PortAudio includes (WASAPI, MME, DirectSound) and whether it has ASIO (Ardour's configure looks for `pa_asio.h`). The user records nothing in the DAW, so a working WASAPI or MME output is enough for playback. WP1 checks this on the user's machine.
+- **Proof that it runs:** with only the bundle's `bin` and `C:\Windows` on `PATH`, `ardour9-mother_smoke.exe` passes 26/26 and `ardour9-export.exe` writes the 343 s mix (60,505,244 bytes = 343 s × 44.1 kHz × 2 ch × 16 bit).
+- **Download:** artifact `ardour-windows-x64-spike` on the `Windows build` workflow run. It is a developer bundle, not an installer.
+- **Not yet verified:** the GUI. The packaging script only puts the command-line tools in `bin`; the GUI executable is installed elsewhere in the tree, and it may also need GTK runtime data (pixbuf loaders, fonts). WP1 turns this into a proper installer (NSIS, as upstream uses), names the executable, and needs one manual GUI start on the user's Windows machine.
+- **Upstream-relevant findings:** the GCC 16 / C++20 issue will reach Linux distributions too, and Ardour's native-Windows wscript branch assumes a `jack64` library.
 
-### 2.3 "Mother" smoke test (headless, Linux)
+### 2.3 "Mother" smoke test (headless, Linux and Windows)
 
 `tools/mother-smoke/` contains a WAV generator and a small libardour program. It runs in CI after every build.
 
 - The WAVs are seven synthetic stand-ins (44.1 kHz, 24-bit mono, 5:41, each with a BWF `bext` chunk). The vocal's BWF TimeReference is set to 2 s. The real "Mother" files are on the user's machine; the final acceptance test (brief §6) uses them.
 - The program imports the WAVs the way Ardour's GUI does: external sources, whole-file regions, placed at their BWF position. Then it sets 120 bpm 4/4, gives track 1 a clip gain of +15.16 dB, splits track 5 at 292 s with +3 / −6 dB on the two halves, and mutes track 4. It saves, closes, reopens, and checks every value again.
-- Result: **26/26 PASS**. `ardour9-export` then renders a 343.0 s stereo WAV (2 s vocal offset + 5:41).
+- Result: **26/26 PASS** on Linux (local and CI) and on Windows (CI, from the bundle). `ardour9-export` then renders a 343.0 s stereo WAV (2 s vocal offset + 5:41).
 - M6 also checked in the GUI source: the region gain editor allows −40 to +40 dB (`gtk2_ardour/audio_region_editor.cc:61`).
 - Two things learned for later WPs:
   1. Edits that add undo commands (such as split) need an open reversible command. Headless and scripted code must open one, as the GUI does.
@@ -99,7 +110,7 @@ A Windows binary that opens "Mother" is the one Phase 0 deliverable still open. 
 
 **Option A: fork Ardour, based on 9.8.**
 
-The ARA mapping fits Ardour's existing model, without the "infeasible in 3 months" condition that Option B requires. Linux builds and tests pass, and the "Mother" operations work and persist. The open Windows build is plumbing, because upstream ships Windows binaries from this source.
+The ARA mapping fits Ardour's existing model, without the "infeasible in 3 months" condition that Option B requires. Linux and Windows builds pass in CI, and the "Mother" operations work and persist on both. What remains on Windows (an installer and a GUI check) is packaging work for WP1, not a reason to change base.
 
 ## 6. Needed from the user before WP1
 
@@ -108,7 +119,7 @@ The ARA mapping fits Ardour's existing model, without the "infeasible in 3 month
 3. **Code-signing certificate:** yes or no (§9 Q3).
 4. **Drum Studio styles** (§9 Q4).
 5. **ARA licensing:** do you accept GPLv3 for ARA-enabled binaries (D-005)?
-6. **Windows build host:** either allow `git.ardour.org` (and the source-tarball hosts) in this environment's network settings, or accept GitHub Actions MSYS2 as the Windows build path.
+6. **Windows build path:** keep the GitHub Actions MSYS2 build (works now; 1 h 48 min per build, so ccache is a WP1 item), or also reproduce Ardour's official MinGW cross-build. That needs `git.ardour.org` and the source-tarball hosts allowed in this environment's network settings, or another build machine.
 7. **Repository layout:** import Ardour's full history here (D-006)?
 8. **"Mother" WAVs:** the real Zoom R8 files are not in the repository. The headless test uses synthetic stand-ins until the final acceptance test.
 9. **IOdaw prototype:** `prototype/tracktion_inspect.py` and the IOdaw studies (brief §10) are not in this repository. WP6 needs them.
@@ -120,6 +131,7 @@ The ARA mapping fits Ardour's existing model, without the "infeasible in 3 month
 | `PHASE0.md` | this report |
 | `DECISIONS.md` | decision log |
 | `THIRD_PARTY.md` | licence register |
-| `.github/workflows/phase0-build.yml`, `ci/` | Linux build + tests + smoke test; Windows MSYS2 spike |
-| `patches/upstream/` | two upstream-ready Ardour patches |
+| `.github/workflows/linux.yml`, `ci/linux-*.sh` | Linux build + unit tests + Mother smoke test (green) |
+| `.github/workflows/windows.yml`, `ci/windows-*.sh` | Windows MSYS2 build, bundle, Mother smoke test (green) |
+| `patches/upstream/` | three upstream-ready Ardour patches (AVX-512 find_peaks, session-utils BusProfile, portaudio jack64) |
 | `tools/mother-smoke/` | WAV generator and headless "Mother" test |
