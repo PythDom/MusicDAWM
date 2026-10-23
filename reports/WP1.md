@@ -27,8 +27,13 @@
 |---|---|
 | Ardour unit tests (libpbd, libevoral, libaudiographer, libardour), Linux, local | all pass |
 | Mother smoke test + export, Linux, local | 28/28, export 343.0 s |
-| `Linux build` workflow | *see CI section below* |
-| `Windows build` workflow (build, portable folder, smoke test, zip) | *see CI section below* |
+| `Linux build` workflow | green, run 39997571812 on `02c308369f` (1 h 07 min). The later commit changed only the Windows build script. |
+| `Windows build` workflow (build, portable folder, smoke test, zip) | green, run 40005338819 on `aa20308a43`. Build 2 h 50 min with an empty compiler cache; smoke test and export pass; `MusicDAWM-0.1.0-win64.zip` is 110 MB. |
+
+## CI notes
+
+- On Windows, waf moves every compiler argument after the first into an `@response` file, so a compiler set as `ccache gcc` failed (ccache saw the response file as the compiler). The build script now uses copies of `ccache.exe` named `gcc.exe` and `g++.exe` (ccache's masquerade mode), which find the real compiler on `PATH`.
+- The first Windows build with ccache filled the cache (1,756 misses), so it took nearly the full 3-hour job limit. Later builds reuse that cache and should be much faster.
 
 ## Known issues
 
