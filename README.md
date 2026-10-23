@@ -7,6 +7,7 @@ Its workflow: import recordings, add drums the Korg Sound On Sound way, fix voca
 
 | File | Contents |
 |---|---|
+| [`docs/user-guide.md`](docs/user-guide.md) | User guide for what is specific to MusicDAWM |
 | [`PHASE0.md`](PHASE0.md) | Spike results, ARA2 feasibility note, base decision |
 | [`DECISIONS.md`](DECISIONS.md) | Choices made where the brief was open |
 | [`THIRD_PARTY.md`](THIRD_PARTY.md) | Licences of everything bundled or linked |
