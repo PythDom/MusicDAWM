@@ -11,7 +11,7 @@ This guide covers only what is **specific to MusicDAWM**. Everything that works 
 
 MusicDAWM is a portable folder: there is no installer, and nothing is written outside the folder except your settings (§3).
 
-1. Download `MusicDAWM-<version>-win64.zip` (about 120 MB) from the repository's **Releases** page. For a build between releases: **Actions** → **Windows build** → the latest green run → **Artifacts** → `MusicDAWM-<version>-win64` (GitHub wraps it in a second zip; unpack that once). You must be signed in to GitHub.
+1. Download `MusicDAWM-<version>-win64.zip` (about 210 MB) from the repository's **Releases** page. For a build between releases: **Actions** → **Windows build** → the latest green run → **Artifacts** → `MusicDAWM-<version>-win64` (GitHub wraps it in a second zip; unpack that once). You must be signed in to GitHub.
 2. **Before unzipping:** right-click the zip → **Properties** → tick **Unblock** → **OK**. This stops the "Windows protected your PC" warning on every program inside. (In PowerShell: `Unblock-File .\MusicDAWM-0.1.0-win64.zip`.)
 3. Unzip to a folder of your choice, for example `C:\`. You get a folder `MusicDAWM-<version>-win64`. Keep its structure as it is: the program finds its files relative to the `bin` folder.
 4. To update, unzip the new version next to the old one. Settings and sessions are not inside the folder (§3), so nothing is lost; delete the old folder when the new one works.
