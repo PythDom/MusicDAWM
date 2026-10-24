@@ -39,6 +39,7 @@
 #include "ardour/session.h"
 #include "ardour/source_factory.h"
 #include "ardour/plugin_manager.h"
+#include "ardour/plugin_scan_result.h"
 #include "ardour/rc_configuration.h"
 
 #include "common.h"
@@ -150,7 +151,23 @@ load_plugin (Session& s, string const& module)
 	PluginManager& pm = find_plugins (module);
 	for (auto const& i : pm.vst3_plugin_info ()) {
 		if (i->name == "ARATestPlugIn") {
-			return i->load (s);
+			PluginPtr p = i->load (s);
+			if (!p) {
+				printf ("   found %s, but it does not load\n", i->path.c_str ());
+			}
+			return p;
+		}
+	}
+	/* not found: say what the scan saw */
+	printf ("   VST3 path: %s\n", Config->get_plugin_path_vst3 ().c_str ());
+	for (auto const& i : pm.vst3_plugin_info ()) {
+		printf ("   VST3 plug-in: %s (%s)\n", i->name.c_str (), i->path.c_str ());
+	}
+	std::vector<std::shared_ptr<PluginScanLogEntry>> log;
+	pm.scan_log (log);
+	for (auto const& e : log) {
+		if (e->type () == VST3) {
+			printf ("   scan of %s: result 0x%x\n%s\n", e->path ().c_str (), (unsigned)e->result (), e->log ().c_str ());
 		}
 	}
 	return PluginPtr ();
@@ -198,7 +215,8 @@ first (string const& dir, string const& module)
 	PluginPtr plugin = load_plugin (*s, module);
 	check ((bool)plugin, "ARATestPlugIn loads");
 	if (!plugin) {
-		return 1;
+		fflush (stdout);
+		_exit (1);
 	}
 	check (plugin->ara_factory () != 0, "it is an ARA 2 plug-in");
 	check (plugin->ara_extension () == 0, "as an ordinary plug-in it is not in ARA mode");
