@@ -24,7 +24,8 @@ GEN=()
 case "$(uname -s)" in
 	# GCC 16 (MSYS2): ARA_Examples' ICST_AudioFile uses int64_t without <cstdint>
 	# htonl/ntohl (TestPersistency) are in ws2_32, which MSVC links by pragma
-	MINGW*|MSYS*) GEN=(-G "MSYS Makefiles" -DCMAKE_CXX_FLAGS="-include cstdint" -DCMAKE_CXX_STANDARD_LIBRARIES="-lws2_32") ;;
+	# (this replaces CMake's default list, so that list comes first)
+	MINGW*|MSYS*) GEN=(-G "MSYS Makefiles" -DCMAKE_CXX_FLAGS="-include cstdint" -DCMAKE_CXX_STANDARD_LIBRARIES="-lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32 -lws2_32") ;;
 esac
 
 case "$(uname -s)" in
