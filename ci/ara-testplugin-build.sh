@@ -20,6 +20,10 @@ if [ ! -d ARA_SDK ]; then
 		https://github.com/steinbergmedia/vst3sdk.git ARA_SDK/vst3sdk >&2
 fi
 
+# The examples turn on GCC's -fanalyzer for release builds; it can run for
+# hours or run out of memory (their own CMake note says so). Not needed here.
+sed -i 's/\$<\$<NOT:\$<CONFIG:Debug>>:-fanalyzer>//' ARA_SDK/ARA_Examples/CMakeLists.txt
+
 GEN=()
 case "$(uname -s)" in
 	# GCC 16 (MSYS2): ARA_Examples' ICST_AudioFile uses int64_t without <cstdint>
