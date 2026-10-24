@@ -171,6 +171,13 @@ class LIBARDOUR_API AudioRegion : public Region, public AudioReadable
 	int separate_by_channel (std::vector<std::shared_ptr<Region> >&) const;
 
 	bool remove_plugin (std::shared_ptr<RegionFxPlugin>);
+
+#ifdef HAVE_ARA
+	/* MusicDAWM WP9: while in a playlist, a region with an ARA plug-in as
+	 * Region FX is a playback region of that plug-in's ARA document */
+	void set_playlist (std::weak_ptr<ARDOUR::Playlist>);
+	void ara_update ();
+#endif
 	void reorder_plugins (RegionFxList const&);
 
 	timecnt_t tail () const;
@@ -229,6 +236,9 @@ class LIBARDOUR_API AudioRegion : public Region, public AudioReadable
 	PBD::Property<bool>     _fade_in_active;
 	PBD::Property<bool>     _fade_out_active;
 	PBD::Property<bool>     _fade_before_fx;
+#ifdef HAVE_ARA
+	std::atomic<bool>       _ara_rendered { false };
+#endif
 	/** linear gain to apply to the whole region */
 	PBD::Property<gain_t>   _scale_amplitude;
 

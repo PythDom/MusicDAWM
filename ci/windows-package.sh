@@ -7,6 +7,7 @@
 set -euo pipefail
 
 STAGE=${1:?stage dir}
+SRC=$(cd "$(dirname "$0")/.." && pwd)
 cd "$STAGE"
 mkdir -p bin
 
@@ -49,6 +50,15 @@ while :; do
 	done
 	[ "$(ls bin | wc -l)" -eq "$before" ] && break
 done
+
+# Licences: built with --ara, the program is distributed under GPLv3
+# (DECISIONS.md D-005); the ARA SDK is Apache-2.0.
+mkdir -p licences
+cp "$SRC/COPYING-GPLv3" licences/GPLv3.txt
+cp "$SRC/COPYING" licences/Ardour-COPYING.txt
+cp "$SRC/libs/ara/ARA_API/LICENSE.txt" licences/ARA_API-Apache-2.0.txt
+cp "$SRC/libs/ara/ARA_Library/LICENSE.txt" licences/ARA_Library-Apache-2.0.txt
+cp "$SRC/THIRD_PARTY.md" licences/
 
 echo "bundle: $(ls bin | wc -l) files in bin, $(du -sh . | cut -f1) total"
 ls bin | grep -i '\.exe$'

@@ -3,9 +3,9 @@
 MusicDAWM is a songwriting and arranging DAW based on [Ardour](https://ardour.org) 9.8.
 This guide covers only what is **specific to MusicDAWM**. Everything that works as in Ardour (editing, mixing, automation, MIDI, export and so on) is described in the [Ardour manual](https://manual.ardour.org).
 
-*Status: 2026-10-23, MusicDAWM 0.1.0 (work package WP1: name, icon, portable zip, release process).*
+*Status: 2026-10-24, MusicDAWM 0.1.0 (work packages WP1, WP3, WP5, WP6, WP9).*
 
-> **What exists today.** MusicDAWM 0.1.0 is Ardour 9.8 under its own name, with the changes listed in §4, packaged as a portable Windows folder. The MusicDAWM features from the project brief (Drum Studio, Tap Tempo Map, DAWproject import, one-click freeze, limiter, CLAP, Melodyne via ARA) are **not built yet**. §6 lists them so you know what is coming; this guide will describe each one when it ships.
+> **What exists today.** MusicDAWM is Ardour 9.8 under its own name (§4), packaged as a portable Windows folder, with Drum Studio (§6), DAWproject import (§7), Waveform and Cubase migration (§8) and Melodyne through ARA (§9). §10 lists what is still to come.
 
 ## 1. Getting the program
 
@@ -152,7 +152,36 @@ What comes across: tracks (named after their audio files, since Waveform does no
 
 **Cubase: Session → Import Cubase Project…** explains the one step needed in Cubase: Cubase's own `.cpr` files cannot be read (the format is not published), so export the project from Cubase 14.0.20 or later as DAWproject (*File → Export → DAWproject*), then pick that file. Older Cubase versions cannot export DAWproject; export the tracks as audio files instead and import them with *Import Audio/MIDI files*.
 
-## 9. Coming next
+## 9. Melodyne and other ARA plug-ins
+
+ARA lets a plug-in such as Melodyne work on a clip directly: it sees the whole clip, not just what passes through it while the song plays, so there is no "Transfer" step.
+
+> **Not yet tried with Melodyne itself.** ARA hosting is tested with the ARA SDK's own test plug-in (analysis, playback, moves, trims, saving and reopening). The first test with your Melodyne essential is the acceptance step (see `reports/WP9.md`); if anything below does not match what you see, please report it.
+
+**Open a clip in Melodyne**
+
+1. Double-click the clip (region) to open its **region editor**.
+2. In the **Region Effects** box, right-click → **New Plugin** and pick Melodyne (VST3).
+3. Double-click Melodyne in the box to open its window. It shows this clip, already analysed (the analysis takes a few seconds the first time).
+4. Edit as usual. You hear the result straight away when you play the song.
+
+**What follows the clip**
+
+- Move it, trim either end, or rename it: Melodyne's edits stay on the right notes.
+- Split it: both pieces keep the edits. Copies (duplicate, copy/paste) share them too, so editing one copy changes the others. Separate edits per copy are not possible yet.
+- Clip gain and the gain envelope apply after Melodyne, as you would expect. Fades too.
+- Tempo and time-signature changes reach Melodyne (its grid follows the session).
+
+**Saving:** Melodyne's edits are saved with the session, in the session folder under `plugins\ara-….dat` (one file per snapshot). Keep that file with the session; copying the whole session folder is enough. Without it the clips open in Melodyne unedited.
+
+**Good to know**
+
+- ARA works when Melodyne is a **Region Effect**. As a normal track plug-in (mixer strip) it works as before, without ARA (Transfer mode).
+- Melodyne essential edits monophonic material only: vocals and single-note lines, not chords.
+- Other ARA plug-ins in VST3 format go through the same path, but none has been tried. Only VST3 is supported (no CLAP ARA yet).
+- **Licence:** because the ARA library is Apache-2.0, the Windows program is distributed under the **GNU GPL version 3** (the source stays "GPL version 2 or later"). The licence texts are in the `licences` folder.
+
+## 10. Coming next
 
 None of these are available yet. Each work package adds its section to this guide when it ships.
 
@@ -162,9 +191,6 @@ None of these are available yet. Each work package adds its section to this guid
 | Tap Tempo Map | Tap a key along with a recording played without a click, and the bar grid follows the performance | WP4 |
 | Limiter and one-click freeze | A master limiter; freeze a track's plugins with one click and unfreeze later | WP7 |
 | CLAP plugins | Load CLAP plugins such as Surge XT | WP8 |
-| Melodyne via ARA | Open a clip in Melodyne essential directly; corrections follow when you move or trim the clip | WP9 |
-
-**Melodyne today:** Melodyne loads in Ardour as a normal VST3 plugin, and that should work in this build too (not yet tested). Without ARA you use Melodyne's **Transfer** mode: insert Melodyne on the vocal track, press Transfer in Melodyne, play the section so Melodyne records it, then edit. Melodyne essential edits monophonic material only: vocals and single-note lines, not chords.
 
 ## Appendix: command-line tools in `bin`
 
@@ -173,6 +199,8 @@ The folder also contains Ardour's command-line session tools under MusicDAWM nam
 `musicdawm9-mother_smoke.exe` is MusicDAWM's own self-test. It builds a test session from seven WAV files with the exact track names of the "Mother" reference project, checks it, saves it and reopens it. It is meant for the build pipeline, not for your songs: it only accepts the generated test files from `tools/mother-smoke/make_wavs.py`.
 
 `musicdawm9-waveform_test.exe` checks the Waveform import, and with `--convert <edit> <out.dawproject>` converts a Waveform edit to a DAWproject file.
+
+`musicdawm9-ara_test.exe <folder> <ARATestPlugIn.vst3>` checks ARA hosting with the ARA SDK's test plug-in (not shipped); then `musicdawm9-ara_test.exe --reload <folder> <ARATestPlugIn.vst3>` checks that the saved session brings the plug-in's data back.
 
 `musicdawm9-dawproject_test.exe` checks the DAWproject import against a test file made by `tools/dawproject/make_test_project.py`.
 

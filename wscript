@@ -898,6 +898,8 @@ def options(opt):
                     help='Compile without support for LRDF LADSPA data even if present')
     opt.add_option('--no-nls', action='store_true', default=False, dest='no_nls',
                     help='Disable i18n (native language support)')
+    opt.add_option('--ara', action='store_true', default=False, dest='ara',
+                    help='MusicDAWM: host ARA 2 plug-ins (e.g. Melodyne). Uses the ARA SDK (Apache-2.0): binaries built with it are GPLv3, see DECISIONS.md D-005')
     opt.add_option('--no-phone-home', action='store_true', default=False, dest='no_phone_home',
                    help='Do not contact ardour.org at startup for new announcements')
     opt.add_option('--stl-debug', action='store_true', default=False, dest='stl_debug',
@@ -1355,6 +1357,9 @@ int main () { __int128 x = 0; return 0; }
     if not opts.no_phone_home:
         conf.define('PHONE_HOME', 1)
         conf.env['PHONE_HOME'] = True
+    if opts.ara:
+        conf.define('HAVE_ARA', 1)
+        conf.env['ARA'] = True
     if not opts.no_fpu_optimization:
         conf.env['FPU_OPTIMIZATION'] = True
     if opts.freedesktop:
@@ -1570,6 +1575,7 @@ const char* const ardour_config_info = "\\n\\
     write_config_text('NI-Maschine',           opts.maschine)
     write_config_text('OGG',                   conf.is_defined('HAVE_OGG'))
     write_config_text('Phone home',            conf.is_defined('PHONE_HOME'))
+    write_config_text('ARA 2 hosting (GPLv3 binary)', conf.is_defined('HAVE_ARA'))
     write_config_text('Program name',          opts.program_name)
     write_config_text('Samplerate',            conf.is_defined('HAVE_SAMPLERATE'))
     write_config_text('PT format',             conf.is_defined('PTFORMAT'))

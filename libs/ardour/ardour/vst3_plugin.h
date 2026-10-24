@@ -217,6 +217,14 @@ public:
 	bool add_slave (Vst::IEditController*, bool);
 	bool remove_slave (Vst::IEditController*);
 
+#ifdef HAVE_ARA
+	void const* ara_factory () const { return _ara_factory; }
+	void const* ara_extension () const { return _ara_extension; }
+	bool        ara_bind (void* document_controller);
+	bool        ara_suspend () { bool const was = _is_processing; deactivate (); return was; }
+	void        ara_resume (bool was) { if (was) { activate (); } }
+#endif
+
 	class RouteProcessorChangeBlock
 	{
 		public:
@@ -375,6 +383,13 @@ private:
 	 * while the route holds a processor lock
 	 */
 	std::atomic<bool> _in_set_owner;
+
+#ifdef HAVE_ARA
+	FUnknown*   _ara_entry; /* ARA::IPlugInEntryPoint2 */
+	void const* _ara_factory;
+	void const* _ara_extension;
+	void*       _ara_dc;
+#endif
 };
 
 } // namespace Steinberg
@@ -452,6 +467,14 @@ public:
 
 	void add_slave (std::shared_ptr<Plugin>, bool);
 	void remove_slave (std::shared_ptr<Plugin>);
+
+#ifdef HAVE_ARA
+	void const* ara_factory () const { return _plug->ara_factory (); }
+	bool        ara_bind (Session&);
+	void const* ara_extension () const { return _plug->ara_extension (); }
+	bool        ara_suspend () { return _plug->ara_suspend (); }
+	void        ara_resume (bool was) { _plug->ara_resume (was); }
+#endif
 
 	int connect_and_run (BufferSet&  bufs,
 	                     samplepos_t start, samplepos_t end, double speed,

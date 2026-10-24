@@ -86,6 +86,9 @@
 #include "ardour/ardour.h"
 #include "ardour/audio_backend.h"
 #include "ardour/audio_track.h"
+#ifdef HAVE_ARA
+#include "ardour/ara_host.h"
+#endif
 #include "ardour/audioengine.h"
 #include "ardour/audiofilesource.h"
 #include "ardour/disk_reader.h"
@@ -1161,6 +1164,10 @@ void
 ARDOUR_UI::every_point_one_seconds ()
 {
 	if (editor) editor->build_region_boundary_cache();
+#ifdef HAVE_ARA
+	/* ARA plug-ins report analysis progress and edits here */
+	ARAHost::idle ();
+#endif
 }
 
 void

@@ -52,10 +52,11 @@ echo "CC=$CC CXX=$CXX"
 # --no-lrdf: liblrdf (LADSPA metadata only) is not packaged for MSYS2.
 # suil is not packaged either, but Ardour bundles it (libs/tk/suil).
 # --no-dr-mingw: Dr. MinGW (exchndl, crash backtraces) is not packaged; it is optional.
+# --ara: ARA 2 hosting (WP9); the binaries are GPLv3 (DECISIONS.md D-005).
 # --cxx17: MSYS2 ships GCC 16, which defaults to C++20 (u8"" literals become char8_t).
 if ! python3 ./waf configure --check-c-compiler=gcc --check-cxx-compiler=g++ \
 	--program-name=MusicDAWM \
-	--dist-target=mingw --optimize --cxx17 --no-phone-home --no-lrdf --no-dr-mingw \
+	--dist-target=mingw --optimize --cxx17 --no-phone-home --no-lrdf --no-dr-mingw --ara \
 	--with-backends=dummy,portaudio \
 	--prefix="$STAGE" --libdir="$STAGE/lib"; then
 	echo "---- tail of build/config.log"

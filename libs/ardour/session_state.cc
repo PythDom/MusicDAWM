@@ -93,6 +93,9 @@
 #include "ardour/amp.h"
 #include "ardour/async_midi_port.h"
 #include "ardour/audio_track.h"
+#ifdef HAVE_ARA
+#include "ardour/ara_host.h"
+#endif
 #include "ardour/audioengine.h"
 #include "ardour/audiofilesource.h"
 #include "ardour/audioregion.h"
@@ -956,6 +959,11 @@ Session::save_state (string snapshot_name, bool pending, bool switch_to_snapshot
 
 	if (!pending && !for_archive) {
 
+#ifdef HAVE_ARA
+		if (!template_only) {
+			ARAHost::save (*this, snapshot_name);
+		}
+#endif
 		save_history (snapshot_name);
 
 		if (mark_as_clean) {

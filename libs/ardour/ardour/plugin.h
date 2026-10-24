@@ -202,6 +202,20 @@ public:
 	virtual void add_slave (std::shared_ptr<Plugin>, bool realtime) {}
 	virtual void remove_slave (std::shared_ptr<Plugin>) {}
 
+#ifdef HAVE_ARA
+	/* MusicDAWM WP9: ARA 2 (see ardour/ara_host.h). The plug-in's ARA factory
+	 * (an ARA::ARAFactory const*), or 0 if it is no ARA plug-in; bind it to
+	 * the session's document for that factory (must be done before it is
+	 * activated); the ARA::ARAPlugInExtensionInstance once bound. */
+	virtual void const* ara_factory () const { return 0; }
+	virtual bool        ara_bind (Session&) { return false; }
+	virtual void const* ara_extension () const { return 0; }
+	/* playback regions are added and removed while the plug-in is
+	 * inactive: suspend returns whether it was active, for resume */
+	virtual bool        ara_suspend () { return false; }
+	virtual void        ara_resume (bool was_active) {}
+#endif
+
 	typedef struct {
 		unsigned char* data;
 		int            width;

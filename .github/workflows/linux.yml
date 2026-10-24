@@ -67,6 +67,13 @@ jobs:
           $T "$RUNNER_TEMP/wf-bin" "$W/Mother Edit 2.tracktionedit"
           $T --convert "$W/Mother Edit 1.tracktionedit" "$RUNNER_TEMP/Mother.dawproject"
           $T "$RUNNER_TEMP/wf-dp" "$RUNNER_TEMP/Mother.dawproject"
+      - name: ARA test
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          P=$(bash ci/ara-testplugin-build.sh "$RUNNER_TEMP/ara-sdk" | tail -1)
+          export TOP="$PWD"; . build/gtk2_ardour/ardev_common_waf.sh
+          build/session_utils/musicdawm9-ara_test "$RUNNER_TEMP/ara" "$P"
+          build/session_utils/musicdawm9-ara_test --reload "$RUNNER_TEMP/ara" "$P"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

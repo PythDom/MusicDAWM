@@ -25,7 +25,7 @@ def build_ardour_util(bld, util):
         obj.cxxflags = [ '-fvisibility=default' ]
     obj.source   = ['common.cc', util + '.cc' ]
     obj.target   = pgmprefix + '-' + util
-    obj.includes = ['.']
+    obj.includes = ['.', '../libs', '../libs/vst3']
     obj.linkflags= [ bld.env['compiler_flags_dict']['execstack'] ]
     obj.use      = [ 'libpbd',
                      'libardour',
@@ -72,6 +72,9 @@ def build(bld):
     pgmprefix = bld.env['PROGRAM_NAME'].lower() + bld.env['MAJOR']
 
     utils = bld.path.ant_glob('[a-z]*.cc', excl=['example.cc', 'common.cc'])
+    if not bld.is_defined('HAVE_ARA'):
+        # MusicDAWM WP9: the ARA test needs a build with --ara
+        utils = [u for u in utils if os.path.basename(str(u)) != 'ara_test.cc']
 
     for util in utils:
         fn = os.path.splitext(os.path.basename(str(util)))[0]

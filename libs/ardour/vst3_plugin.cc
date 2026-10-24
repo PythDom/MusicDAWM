@@ -51,6 +51,19 @@
 #include "ardour/vst3_module.h"
 #include "ardour/vst3_plugin.h"
 
+#ifdef HAVE_ARA
+#include "ardour/ara_host.h"
+#include "ARA_API/ARAVST3.h"
+#endif
+
+#ifdef HAVE_ARA
+namespace ARA {
+DEF_CLASS_IID (IMainFactory)
+DEF_CLASS_IID (IPlugInEntryPoint)
+DEF_CLASS_IID (IPlugInEntryPoint2)
+}
+#endif
+
 #include "pbd/i18n.h"
 
 using namespace PBD;
@@ -703,6 +716,17 @@ VST3Plugin::remove_slave (std::shared_ptr<Plugin> p)
 	}
 }
 
+#ifdef HAVE_ARA
+bool
+VST3Plugin::ara_bind (Session& s)
+{
+	if (!_plug->ara_factory ()) {
+		return false;
+	}
+	return _plug->ara_bind (ARAHost::document_controller (s, _plug->ara_factory ()));
+}
+#endif
+
 void
 VST3Plugin::set_non_realtime (bool yn)
 {
@@ -1189,6 +1213,12 @@ VST3PI::VST3PI (std::shared_ptr<ARDOUR::VST3PluginModule> m, std::string unique_
 	, _no_kMono (false)
 	, _restart_component_is_synced (false)
 	, _in_set_owner (false)
+#ifdef HAVE_ARA
+	, _ara_entry (0)
+	, _ara_factory (0)
+	, _ara_extension (0)
+	, _ara_dc (0)
+#endif
 {
 	using namespace std;
 	IPluginFactory* factory = m->factory ();
@@ -1335,6 +1365,19 @@ VST3PI::VST3PI (std::shared_ptr<ARDOUR::VST3PluginModule> m, std::string unique_
 	memset (&_program_change_port, 0, sizeof (_program_change_port));
 	_program_change_port.id = Vst::kNoParamId;
 
+#ifdef HAVE_ARA
+	/* an ARA 2 plug-in: it is put into ARA mode by ara_bind () */
+	{
+		FUnknownPtr<ARA::IPlugInEntryPoint>  ep (_component);
+		FUnknownPtr<ARA::IPlugInEntryPoint2> ep2 (_component);
+		if (ep && ep2) {
+			_ara_factory = ep->getFactory ();
+			_ara_entry   = ep2.take ();
+			DEBUG_TRACE (DEBUG::VST3Config, string_compose ("VST3PI: ARA plug-in, factory %1\n", static_cast<ARA::ARAFactory const*> (_ara_factory)->factoryID));
+		}
+	}
+#endif
+
 	FUnknownPtr<Vst::IEditController2> controller2 (_controller);
 	if (controller2) {
 		switch (Config->get_vst3_knob_mode ()) {
@@ -1473,6 +1516,14 @@ VST3PI::terminate ()
 
 	deactivate ();
 
+#ifdef HAVE_ARA
+	/* the regions it renders leave the ARA document (while it is inactive) */
+	if (_ara_extension) {
+		ARDOUR::ARAHost::plugin_destroyed (_ara_extension);
+		_ara_extension = 0;
+	}
+#endif
+
 	_processor = 0;
 
 	disconnect_components ();
@@ -1490,7 +1541,39 @@ VST3PI::terminate ()
 
 	_controller = 0;
 	_component  = 0;
+
+#ifdef HAVE_ARA
+	if (_ara_entry) {
+		_ara_entry->release ();
+		_ara_entry = 0;
+	}
+	/* the document may go now (if its session has) */
+	if (_ara_dc) {
+		ARDOUR::ARAHost::plugin_released (_ara_dc);
+		_ara_dc = 0;
+	}
+#endif
 }
+
+#ifdef HAVE_ARA
+bool
+VST3PI::ara_bind (void* dc)
+{
+	if (!_ara_entry || !dc) {
+		return false;
+	}
+	if (_ara_extension) {
+		return true;
+	}
+	ARA::ARAPlugInInstanceRoleFlags const roles = ARA::kARAPlaybackRendererRole | ARA::kARAEditorRendererRole | ARA::kARAEditorViewRole;
+	_ara_extension = static_cast<ARA::IPlugInEntryPoint2*> (_ara_entry)->bindToDocumentControllerWithRoles (static_cast<ARA::ARADocumentControllerRef> (dc), roles, roles);
+	if (_ara_extension) {
+		_ara_dc = dc;
+		ARDOUR::ARAHost::plugin_bound (dc);
+	}
+	return _ara_extension != 0;
+}
+#endif
 
 bool
 VST3PI::connect_components ()

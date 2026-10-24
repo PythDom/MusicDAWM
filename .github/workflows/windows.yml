@@ -22,7 +22,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The ARA SDK's example plug-in, for the ARA test (WP9). Built first, on its
+  # own, so that a problem with it shows in minutes, not after the main build.
+  ara-testplugin:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - name: Keep LF line endings
+        shell: pwsh
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: git base-devel
+          pacboy: cmake:p gcc:p
+      - name: Build ARATestPlugIn
+        run: |
+          P=$(bash ci/ara-testplugin-build.sh "$(cygpath -u "$RUNNER_TEMP")/ara" | tail -1)
+          echo "$P"; mkdir -p ara-testplugin; cp -r "$P" ara-testplugin/
+          find ara-testplugin -type f
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ara-testplugin
+          path: ara-testplugin
+
   windows-msys2:
+    needs: ara-testplugin
     runs-on: windows-2022
     timeout-minutes: 240
     defaults:
@@ -97,6 +127,17 @@ jobs:
           $X "$(m "$T/wf-bin")" "$(m "$W/Mother Edit 2.tracktionedit")"
           $X --convert "$(m "$W/Mother Edit 1.tracktionedit")" "$(m "$T/Mother.dawproject")"
           $X "$(m "$T/wf-dp")" "$(m "$T/Mother.dawproject")"
+      - uses: actions/download-artifact@v4
+        with:
+          name: ara-testplugin
+          path: ara-testplugin
+      - name: ARA test (bundle only, with the ARA SDK's test plug-in)
+        run: |
+          T=$(cygpath -u "$RUNNER_TEMP")
+          P=$(cygpath -m "$(ls -d "$PWD"/ara-testplugin/ARATestPlugIn.vst3)")
+          export PATH="$PWD/stage/bin:/usr/bin:/c/Windows/System32:/c/Windows"
+          stage/bin/musicdawm9-ara_test.exe "$(cygpath -m "$T/ara")" "$P"
+          stage/bin/musicdawm9-ara_test.exe --reload "$(cygpath -m "$T/ara")" "$P"
       - name: Zip
         run: |
           name="MusicDAWM-${{ steps.version.outputs.version }}-win64"

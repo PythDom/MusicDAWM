@@ -21,7 +21,7 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
 # ccache (cache folder set by the workflow) makes rebuilds much faster.
 export CC="ccache gcc" CXX="ccache g++"
 ccache -z >/dev/null
-./waf configure --program-name=MusicDAWM --optimize --no-phone-home --test \
+./waf configure --program-name=MusicDAWM --optimize --no-phone-home --test --ara \
 	--with-backends=jack,alsa,pulseaudio,dummy
 ./waf build -j"$(nproc)"
 ccache -s | grep -iE "hits|misses|cache size" || true

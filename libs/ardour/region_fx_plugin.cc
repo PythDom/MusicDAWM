@@ -426,6 +426,11 @@ RegionFxPlugin::add_plugin (std::shared_ptr<Plugin> plugin)
 {
 	plugin->set_insert_id (this->id ());
 	plugin->set_non_realtime (true);
+#ifdef HAVE_ARA
+	/* MusicDAWM WP9: an ARA plug-in used as Region FX works in ARA mode;
+	 * this must be done before it is activated */
+	plugin->ara_bind (_session);
+#endif
 
 	if (_plugins.empty ()) {
 		/* first (and probably only) plugin instance - connect to relevant signals */

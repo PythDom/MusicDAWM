@@ -41,6 +41,9 @@
 #include "evoral/Curve.h"
 
 #include "ardour/audioengine.h"
+#ifdef HAVE_ARA
+#include "ardour/ara_host.h"
+#endif
 #include "ardour/analysis_graph.h"
 #include "ardour/audioregion.h"
 #include "ardour/buffer_manager.h"
@@ -427,6 +430,9 @@ AudioRegion::AudioRegion (SourceList& srcs)
 
 AudioRegion::~AudioRegion ()
 {
+#ifdef HAVE_ARA
+	ARAHost::region_destroyed (this);
+#endif
 	for (auto const& rfx : _plugins) {
 		rfx->drop_references ();
 	}
@@ -851,7 +857,14 @@ AudioRegion::read_at (Sample*     buf,
 				return 0;
 			}
 
-			/* APPLY REGULAR GAIN CURVES AND SCALING TO mixdown_buffer */
+			/* APPLY REGULAR GAIN CURVES AND SCALING TO mixdown_buffer
+			 * (after the FX if an ARA plug-in renders the region: it plays
+			 * the source, not its input) */
+#ifdef HAVE_ARA
+			if (_ara_rendered) {
+				;
+			} else
+#endif
 			if (envelope_active())  {
 				_envelope->curve().get_vector (timepos_t (offset), timepos_t (offset + n_read), gain_buffer, n_read);
 
@@ -932,6 +945,25 @@ AudioRegion::read_at (Sample*     buf,
 				float load =  (t_end - t_start) / (10000.f * n_proc / (float) _session.sample_rate ());
 				DEBUG_TRACE (DEBUG::AudioCacheRefill, string_compose ("- RegionFx '%1' took %2 us, frames: %3, nchn: %4, ns/spl: %5 load: %6%%\n",
 							name (), (t_end - t_start), n_proc, n_chn, nsecs_per_sample, load));
+			}
+#endif
+#ifdef HAVE_ARA
+			if (_ara_rendered && (envelope_active () || _scale_amplitude != 1.0f)) {
+				/* index 0 of the FX output is region offset internal_offset + suffix */
+				samplepos_t const at = internal_offset + suffix;
+				if (envelope_active ()) {
+					_envelope->curve().get_vector (timepos_t (at), timepos_t (at + n_proc), gain_buffer, n_proc);
+				} else {
+					for (samplecnt_t n = 0; n < n_proc; ++n) {
+						gain_buffer[n] = 1.f;
+					}
+				}
+				for (uint32_t chn = 0; chn < n_chn; ++chn) {
+					Sample* d = _readcache.get_audio (chn).data ();
+					for (samplecnt_t n = 0; n < n_proc; ++n) {
+						d[n] *= gain_buffer[n] * _scale_amplitude;
+					}
+				}
 			}
 #endif
 		}
@@ -2597,6 +2629,9 @@ AudioRegion::_add_plugin (std::shared_ptr<RegionFxPlugin> rfx, std::shared_ptr<R
 		pc.add (Properties::region_fx); // trigger DiskReader overwrite
 	}
 	send_change (pc);
+#ifdef HAVE_ARA
+	ara_update ();
+#endif
 	return true;
 }
 
@@ -2619,6 +2654,9 @@ AudioRegion::remove_plugin (std::shared_ptr<RegionFxPlugin> fx)
 
 	lm.release ();
 
+#ifdef HAVE_ARA
+	ara_update ();
+#endif
 	fx->drop_references ();
 	fx_latency_changed (true);
 	fx_tail_changed (true);
@@ -2768,3 +2806,36 @@ AudioRegion::ensure_length_sanity ()
 		_length = timecnt_t (timepos_t (_length.val().samples()), _length.val().position());
 	}
 }
+
+#ifdef HAVE_ARA
+void
+AudioRegion::set_playlist (std::weak_ptr<Playlist> wpl)
+{
+	Region::set_playlist (wpl);
+	ara_update ();
+}
+
+void
+AudioRegion::ara_update ()
+{
+	std::shared_ptr<Plugin> ara;
+	{
+		PBD::RWLock::ReaderLock lm (_fx_lock);
+		for (auto const& rfx : _plugins) {
+			std::shared_ptr<Plugin> p = rfx->plugin ();
+			if (p && p->ara_extension ()) {
+				ara = p;
+				break;
+			}
+		}
+	}
+	/* no rendering while the ARA document changes */
+	PBD::RWLock::WriterLock lm (_fx_lock);
+	if (ara && playlist ()) {
+		ARAHost::add_region (std::dynamic_pointer_cast<AudioRegion> (shared_from_this ()), ara);
+	} else {
+		ARAHost::remove_region (this, 0);
+	}
+	_ara_rendered = (bool) ara;
+}
+#endif
