@@ -2,7 +2,10 @@ name: Windows build
 
 # Native MSYS2 (UCRT64) build of MusicDAWM on a Windows runner, packaged as a
 # portable folder, then checked with the Mother smoke test. See DECISIONS.md D-007.
-# Run it manually with "publish" ticked to make a GitHub release (docs/releasing.md).
+# Runs on version tags (v*) and by hand: during development one build per
+# finished work package, not one per push (DECISIONS.md D-030). Run it by hand
+# with "publish" ticked, or push a v* tag, to make a GitHub release
+# (docs/releasing.md).
 on:
   workflow_dispatch:
     inputs:
@@ -11,10 +14,8 @@ on:
         type: boolean
         default: false
   push:
-    paths-ignore:
-      - "**.md"
-      - ".github/workflows/linux.yml"
-      - "ci/linux-*.sh"
+    tags:
+      - "v*"
 
 concurrency:
   group: windows-${{ github.ref }}
@@ -44,17 +45,26 @@ jobs:
       - name: Version
         id: version
         run: echo "version=$(cat MUSICDAWM_VERSION)" >> "$GITHUB_OUTPUT"
+      # Restore and save separately, so that a failed or cancelled build still
+      # leaves its compiled objects to the next one (a cold build takes ~3 h,
+      # a warm one ~15 min).
       - name: Restore compiler cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ccache
-          key: ccache-windows-${{ github.sha }}
+          key: ccache-windows-${{ github.run_id }}
           restore-keys: ccache-windows-
       - name: Build
         id: build
         run: |
           export CCACHE_DIR="$(cygpath -u "$GITHUB_WORKSPACE")/ccache" CCACHE_MAXSIZE=3G CCACHE_BASEDIR="$(cygpath -m "$GITHUB_WORKSPACE")"
           bash ci/windows-msys2-build.sh stage 2>&1 | tee windows-build.log; exit ${PIPESTATUS[0]}
+      - name: Save compiler cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ccache
+          key: ccache-windows-${{ github.run_id }}
       - name: Make portable folder
         run: bash ci/windows-package.sh stage
       - name: Mother smoke test (bundle only, MSYS2 off PATH)
@@ -102,7 +112,7 @@ jobs:
 
   release:
     needs: windows-msys2
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.publish) || startsWith (github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
