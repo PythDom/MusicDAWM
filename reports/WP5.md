@@ -27,12 +27,14 @@
 | `musicdawm9-dawproject_test` on `tools/dawproject/make_test_project.py`'s file, local. It covers: tempo and meter changes; mono 44.1 kHz and stereo 48 kHz audio (resampled); clip offset, fade, name; nested clip with warps; disabled clip after a tempo change; loop; folder; MIDI notes and the clip window; volume, pan, mute, master gain, group routing, send level, volume automation; markers; the plug-in report; refusing an archive entry with `..`; session range. | 44/44 pass |
 | Export of the imported session (`musicdawm9-export`) | audio where expected: guitar through its group bus from 2 s, vocal 4–12 s; muted parts silent |
 | GUI, Linux (Xvfb): Session → Import DAWproject… with the same file | tracks, busses, colours, tempo and meter changes, markers and the summary dialog as expected |
-| Linux and Windows CI: the same test (on Windows against the portable folder) | *see CI below* |
-| Ardour unit tests, Mother smoke test, Drum Studio test | no regression (*CI below*) |
+| Linux and Windows CI: the same test (on Windows against the portable folder) | 44/44 on both |
+| Ardour unit tests, Mother smoke test, Drum Studio test | no regression |
 
 ## CI
 
-*Filled in when the runs on the WP5 commit finish.*
+Green on `e41c074574`: `Linux build` (all tests) and `Windows build` run 40068199198, started by hand (D-030): build, portable folder, Mother smoke test, Drum Studio test and the DAWproject import test, all from the portable folder. The Windows build took 19 min (96.5% compiler-cache hits).
+
+The first Windows run on `aaf108b647` failed to compile the test: `near` is a macro in the Windows headers. The test function was renamed.
 
 ## Known issues
 
