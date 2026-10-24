@@ -71,6 +71,12 @@ jobs:
           T=$(cygpath -u "$RUNNER_TEMP")
           export PATH="$PWD/stage/bin:/usr/bin:/c/Windows/System32:/c/Windows"
           MUSICDAWM_REQUIRE_KIT=1 stage/bin/musicdawm9-drum_studio_test.exe "$(cygpath -m "$T/drums")" -
+      - name: DAWproject import test (bundle only)
+        run: |
+          T=$(cygpath -u "$RUNNER_TEMP")
+          python3 tools/dawproject/make_test_project.py "$T/test.dawproject"
+          export PATH="$PWD/stage/bin:/usr/bin:/c/Windows/System32:/c/Windows"
+          stage/bin/musicdawm9-dawproject_test.exe "$(cygpath -m "$T/dawproject")" "$(cygpath -m "$T/test.dawproject")"
       - name: Zip
         run: |
           name="MusicDAWM-${{ steps.version.outputs.version }}-win64"

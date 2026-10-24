@@ -88,6 +88,7 @@ gtk2_ardour_sources = [
         'editor_automation_line.cc',
         'editor_audio_import.cc',
         'editor_pt_import.cc',
+        'editor_dawproject_import.cc',
         'editor_audiotrack.cc',
         'editor_canvas.cc',
         'editor_canvas_events.cc',

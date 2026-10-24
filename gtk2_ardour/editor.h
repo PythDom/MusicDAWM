@@ -1319,6 +1319,7 @@ private:
 
 	/* PT import specific */
 	void external_pt_dialog ();
+	void external_dawproject_dialog (); /* MusicDAWM */
 	ARDOUR::ImportStatus import_pt_status;
 	static void*_import_pt_thread (void*);
 	void* import_pt_thread ();

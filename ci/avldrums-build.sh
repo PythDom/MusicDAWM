@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build x42-avldrums (the Drum Studio's default kits, DECISIONS.md D-019) at a
+# Build x42-avldrums (the Drum Studio's default kits, DECISIONS.md D-011 and D-025) at a
 # pinned commit and install the bundle as <lv2-dir>/avldrums.lv2.
 # No plugin GUI (BUILDOPENGL=no): Ardour shows its generic controls.
 # Usage: ci/avldrums-build.sh <lv2-dir>   (on Windows: inside the MSYS2 UCRT64 shell)

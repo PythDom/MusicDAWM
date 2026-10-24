@@ -41,6 +41,7 @@
 #ifdef PTFORMAT
       <menuitem action='addExistingPTFiles'/>
 #endif
+      <menuitem action='importDAWproject'/>
       <menuitem action='ImportStrips'/>
       <menuitem action='ExportStrips'/>
       <menuitem action='SaveTemplate'/>

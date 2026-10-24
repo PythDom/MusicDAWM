@@ -113,7 +113,32 @@ After flattening, edit the drums like any MIDI: double-click a region to edit no
 - Switches are timed by the program's display loop. If the program freezes for longer than a beat right before a switch (for example while a plugin window opens), that switch can land one beat late; drag its marker into place.
 - A session with a drum track is an ordinary Ardour session plus a few extra settings that stock Ardour ignores, so it should open in stock Ardour 9.8 without the Drum Studio page. This has not been tested yet.
 
-## 7. Coming next
+## 7. Importing a project from another DAW (DAWproject)
+
+DAWproject is an open exchange format that Cubase 14, Studio One 6.5, Bitwig Studio 5 and others can export. MusicDAWM reads it.
+
+1. In the other program, export the song as a **.dawproject** file (Cubase: *File → Export → DAWproject*).
+2. In MusicDAWM, create a new, empty session at the sample rate you want (audio files with another rate are converted).
+3. **Session → Import DAWproject…**, pick the file, **Import**. A summary lists what came across and what did not.
+
+**What comes across**
+
+- Tempo and time signature, including changes (a tempo *ramp* becomes a step at its start).
+- Markers.
+- Audio and MIDI tracks with their names and colours. Folder tracks are flattened: their tracks are imported one by one. Group and effect channels become busses, with each track's output routed to its group and its sends (level, pre/post) to the effect busses.
+- Volume, pan, mute and solo; automation of volume, pan, mute and send levels.
+- Audio clips: position, which part of the file plays, fades, loops (as repeated regions), disabled clips (as muted regions), clip names.
+- MIDI clips with their notes (time, length, velocity, channel).
+
+**What does not (yet), and is listed in the summary**
+
+- Plug-ins and their settings, including the other program's built-in EQs and compressors. Insert them again by hand, using the summary as a list.
+- Time-stretched audio plays at its original speed; the summary says which clip and by how much it was stretched.
+- Note expressions, crossfade shapes, send pan, VCAs, clip-launcher scenes, video.
+
+The import adds to the open session and cannot be undone in one step. If you don't like the result, close the session without saving.
+
+## 8. Coming next
 
 None of these are available yet. Each work package adds its section to this guide when it ships.
 
@@ -121,7 +146,6 @@ None of these are available yet. Each work package adds its section to this guid
 |---|---|---|
 | Songwriter layout and start screen | Recording controls hidden; "New song from WAV files" imports your Zoom R8 tracks aligned in one step | WP2 |
 | Tap Tempo Map | Tap a key along with a recording played without a click, and the bar grid follows the performance | WP4 |
-| DAWproject import | Open projects exported from Cubase (and other DAWs) | WP5 |
 | Waveform 11 and Cubase import | Menu entries that bring your old projects across | WP6 |
 | Limiter and one-click freeze | A master limiter; freeze a track's plugins with one click and unfreeze later | WP7 |
 | CLAP plugins | Load CLAP plugins such as Surge XT | WP8 |
@@ -134,5 +158,7 @@ None of these are available yet. Each work package adds its section to this guid
 The folder also contains Ardour's command-line session tools under MusicDAWM names (`musicdawm9-new_session.exe`, `musicdawm9-new_empty_session.exe`, `musicdawm9-export.exe`, `musicdawm9-lua.exe`), which work as in Ardour.
 
 `musicdawm9-mother_smoke.exe` is MusicDAWM's own self-test. It builds a test session from seven WAV files with the exact track names of the "Mother" reference project, checks it, saves it and reopens it. It is meant for the build pipeline, not for your songs: it only accepts the generated test files from `tools/mother-smoke/make_wavs.py`.
+
+`musicdawm9-dawproject_test.exe` checks the DAWproject import against a test file made by `tools/dawproject/make_test_project.py`.
 
 `musicdawm9-drum_studio_test.exe` tests Drum Studio the same way: it creates a rock drum track, performs intro → verse → fill → chorus → ending in real time with Rec Cues, replays it, drags a switch, flattens, edits one kick, saves and reopens. `musicdawm9-drum_studio_demo.exe <folder> <style>` writes a short demo song in one style (for example `rock` or `six_eight`) that you can open or export to hear the style.
