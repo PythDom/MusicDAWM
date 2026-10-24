@@ -61,7 +61,7 @@ check (bool ok, string const& what)
 }
 
 static bool
-near (double a, double b, double tol)
+close_to (double a, double b, double tol)
 {
 	return fabs (a - b) <= tol;
 }
@@ -115,8 +115,8 @@ main (int argc, char* argv[])
 
 	/* tempo map */
 	TempoMap::SharedPtr tmap (TempoMap::use ());
-	check (near (tmap->tempo_at (timepos_t (Beats ())).note_types_per_minute (), 120, 0.01), "tempo 120 at the start");
-	check (near (tmap->tempo_at (timepos_t (Beats::from_double (40))).note_types_per_minute (), 90, 0.01), "tempo 90 from beat 32");
+	check (close_to (tmap->tempo_at (timepos_t (Beats ())).note_types_per_minute (), 120, 0.01), "tempo 120 at the start");
+	check (close_to (tmap->tempo_at (timepos_t (Beats::from_double (40))).note_types_per_minute (), 90, 0.01), "tempo 90 from beat 32");
 	Meter const& m9 (tmap->meter_at (timepos_t (Beats::from_double (33))));
 	check (m9.divisions_per_bar () == 3 && m9.note_value () == 4, "3/4 from bar 9");
 
@@ -134,15 +134,15 @@ main (int argc, char* argv[])
 			check (ar && llabs (ar->fade_in_length ().samples () - sr / 2) <= 2 && ar->fade_in_active (), string_compose ("Guitar: 1-beat fade in (0.5 s; %1 samples)", ar ? ar->fade_in_length ().samples () : 0));
 			check (rs[0]->name () == "Guitar take", "Guitar: clip name");
 		}
-		check (near (accurate_coefficient_to_dB (g->gain_control ()->get_value ()), -6, 0.05) || g->gain_control ()->automation_state () == Play, "Guitar: -6 dB");
-		check (g->pan_azimuth_control () && near (g->pan_azimuth_control ()->get_value (), 0.25, 0.001), "Guitar: pan 0.25");
+		check (close_to (accurate_coefficient_to_dB (g->gain_control ()->get_value ()), -6, 0.05) || g->gain_control ()->automation_state () == Play, "Guitar: -6 dB");
+		check (g->pan_azimuth_control () && close_to (g->pan_azimuth_control ()->get_value (), 0.25, 0.001), "Guitar: pan 0.25");
 		std::shared_ptr<Route> gb = s->route_by_name ("Guitar Bus");
 		check (gb && g->output ()->audio (0)->connected_to (gb->input ()->audio (0)->name ()), "Guitar: output to Guitar Bus");
 		check (!g->output ()->audio (0)->connected_to (s->master_out ()->input ()->audio (0)->name ()), "Guitar: not also to the master");
 		std::shared_ptr<AutomationList> al = g->gain_control ()->alist ();
 		check (g->gain_control ()->automation_state () == Play && al->size () == 2, "Guitar: volume automation, 2 points");
 		if (al->size () == 2) {
-			check (near (accurate_coefficient_to_dB ((*al->begin ())->value), -6, 0.05) && near (accurate_coefficient_to_dB ((*al->rbegin ())->value), -12, 0.05), "Guitar: automation -6 dB -> -12 dB");
+			check (close_to (accurate_coefficient_to_dB ((*al->begin ())->value), -6, 0.05) && close_to (accurate_coefficient_to_dB ((*al->rbegin ())->value), -12, 0.05), "Guitar: automation -6 dB -> -12 dB");
 		}
 	}
 
@@ -158,10 +158,10 @@ main (int argc, char* argv[])
 			check (!rs[0]->muted () && rs[1]->muted (), "Vocal: the disabled clip is a muted region");
 			check (llabs (rs[1]->position ().samples () - beat (40)) <= 1, "Vocal: clip after the tempo change at beat 40");
 		}
-		check (near (v->gain_control ()->get_value (), 0.5, 0.001), "Vocal: gain 0.5");
+		check (close_to (v->gain_control ()->get_value (), 0.5, 0.001), "Vocal: gain 0.5");
 		std::shared_ptr<Route> rev = s->route_by_name ("Reverb");
 		std::shared_ptr<Send>  send = rev ? v->internal_send_for (rev) : std::shared_ptr<Send> ();
-		check (send && near (send->gain_control ()->get_value (), 0.25, 0.001), "Vocal: send 0.25 to Reverb");
+		check (send && close_to (send->gain_control ()->get_value (), 0.25, 0.001), "Vocal: send 0.25 to Reverb");
 	}
 	bool said_plugin = false;
 	for (auto const& n : res.notes) {
@@ -202,7 +202,7 @@ main (int argc, char* argv[])
 			check (velocity, "Bass: note time, length and velocity");
 		}
 	}
-	check (s->master_out () && near (s->master_out ()->gain_control ()->get_value (), 0.8, 0.001), "Master: gain 0.8");
+	check (s->master_out () && close_to (s->master_out ()->gain_control ()->get_value (), 0.8, 0.001), "Master: gain 0.8");
 
 	/* markers */
 	int marks = 0;
