@@ -29,7 +29,9 @@ esac
 case "$(uname -s)" in
 	# MinGW has no std::aligned_alloc; use _aligned_malloc as for MSVC
 	MINGW*|MSYS*) sed -i 's/#elif defined(_MSC_VER)$/#elif defined(_MSC_VER) || defined(__MINGW32__)/; s/^#if defined(_MSC_VER)$/#if defined(_MSC_VER) || defined(__MINGW32__)/' \
-		ARA_SDK/vst3sdk/public.sdk/source/vst/utility/alignedalloc.h ;;
+		ARA_SDK/vst3sdk/public.sdk/source/vst/utility/alignedalloc.h
+	# windres cannot join string literals; the file is only version info
+	echo '// version info left out for MinGW (test build)' > ARA_SDK/ARA_Examples/ExamplesCommon/Windows/ARAExamples.rc ;;
 esac
 
 cmake -S ARA_SDK/ARA_Examples -B build "${GEN[@]}" -DCMAKE_BUILD_TYPE=Release \
