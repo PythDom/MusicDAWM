@@ -23,7 +23,7 @@ concurrency:
 jobs:
   windows-msys2:
     runs-on: windows-2022
-    timeout-minutes: 180
+    timeout-minutes: 240
     defaults:
       run:
         shell: msys2 {0}

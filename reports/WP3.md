@@ -40,8 +40,8 @@
 |---|---|
 | `tools/drumstudio/test_grooves.py`: determinism, meter, exact length, allowed notes, complexity grows | 336 grooves pass |
 | `musicdawm9-drum_studio_test`, Linux, local, with and without the AVL kit. It covers: library; create; a fill right after a start; real-time perform intro → verse → fill → chorus → ending with Rec Cues; markers on the right bars; replay; drag; flatten; regions audible (monitoring); edit one kick; save; reopen. | 27/27 pass |
-| Same test in the `Windows build` workflow, against the portable folder, with the installed library and the kit required | *see CI below* |
-| Same test in the `Linux build` workflow | *see CI below* |
+| Same test in the `Windows build` workflow, against the portable folder, with the installed library and the kit required | 27/27 pass (run 40037007357) |
+| Same test and the groove check in the `Linux build` workflow | pass (run 40037007355) |
 | Demo renders through the AVL kit, all 12 styles (`drum_studio_demo` + `export`) | sound in every second, no clipping, peaks −1 to −8 dBFS |
 | GUI on Linux (Xvfb, dummy backend), by hand: create, Keys, Record, perform with keys, stop, markers on the bars, flatten, regions named, "Play Cues is off" message | pass |
 | Ardour unit tests, libardour (import code changed) | 25/25 pass |
@@ -49,7 +49,11 @@
 
 ## CI
 
-*Filled in when the runs on the final WP3 commit finish.*
+Both workflows green on `c01ff01b44`:
+
+- `Linux build`, run 40037007355: build, unit tests, Mother smoke test, groove check, Drum Studio test.
+- `Windows build`, run 40037007357: build, portable folder, Mother smoke test and the Drum Studio test with the AVL kits, both run from the portable folder with MSYS2 off `PATH`. The zip `MusicDAWM-0.1.0-win64.zip` grew from 110 MB to 207 MB, almost all of it the drum kits (150 MB uncompressed).
+- The Windows build took 2 h 46 min, because a header that nearly every file includes changed (8.7% compiler-cache hits). The job limit is raised from 3 to 4 hours so that such a commit cannot time out.
 
 ## Known issues
 
