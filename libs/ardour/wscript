@@ -64,6 +64,7 @@ libardour_sources = [
         'disk_reader.cc',
         'disk_writer.cc',
         'dawproject_import.cc',
+        'waveform_import.cc',
         'drum_studio.cc',
         'dsp_filter.cc',
         'ebur128_analysis.cc',
@@ -409,7 +410,7 @@ def build(bld):
     obj.uselib       = ['GLIBMM','GTHREAD','AUBIO','SIGCPP','XML','UUID', 'LO', 'USB',
                         'SNDFILE','SAMPLERATE','LRDF','AUDIOUNITS', 'GIOMM', 'FFTW3F',
                         'LILV','SERD','SORD', 'SRATOM',
-                        'OSX','BOOST','CURL','TAGLIB','VAMPSDK','VAMPHOSTSDK','RUBBERBAND']
+                        'OSX','BOOST','CURL','TAGLIB','VAMPSDK','VAMPHOSTSDK','RUBBERBAND','ARCHIVE']
     obj.use          = ['libpbd','libmidipp','libevoral',
                         'libaudiographer',
                         'libtemporal',

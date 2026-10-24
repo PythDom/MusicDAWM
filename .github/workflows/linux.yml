@@ -57,6 +57,16 @@ jobs:
           python3 tools/dawproject/make_test_project.py "$RUNNER_TEMP/test.dawproject"
           export TOP="$PWD"; . build/gtk2_ardour/ardev_common_waf.sh
           build/session_utils/musicdawm9-dawproject_test "$RUNNER_TEMP/dawproject" "$RUNNER_TEMP/test.dawproject"
+      - name: Waveform import test
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          W="$RUNNER_TEMP/waveform"; python3 tools/waveform/make_test_project.py "$W"
+          export TOP="$PWD"; . build/gtk2_ardour/ardev_common_waf.sh
+          T=build/session_utils/musicdawm9-waveform_test
+          $T "$RUNNER_TEMP/wf-xml" "$W/Mother Edit 1.tracktionedit"
+          $T "$RUNNER_TEMP/wf-bin" "$W/Mother Edit 2.tracktionedit"
+          $T --convert "$W/Mother Edit 1.tracktionedit" "$RUNNER_TEMP/Mother.dawproject"
+          $T "$RUNNER_TEMP/wf-dp" "$RUNNER_TEMP/Mother.dawproject"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

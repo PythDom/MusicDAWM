@@ -42,6 +42,9 @@
       <menuitem action='addExistingPTFiles'/>
 #endif
       <menuitem action='importDAWproject'/>
+      <menuitem action='importWaveform'/>
+      <menuitem action='importCubase'/>
+      <menuitem action='convertWaveform'/>
       <menuitem action='ImportStrips'/>
       <menuitem action='ExportStrips'/>
       <menuitem action='SaveTemplate'/>

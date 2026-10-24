@@ -138,7 +138,21 @@ DAWproject is an open exchange format that Cubase 14, Studio One 6.5, Bitwig Stu
 
 The import adds to the open session and cannot be undone in one step. If you don't like the result, close the session without saving.
 
-## 8. Coming next
+## 8. Bringing your Waveform and Cubase songs across
+
+**Waveform (11 and earlier): Session → Import Waveform Project…**
+
+1. Create a new, empty session in MusicDAWM.
+2. Pick the song's **edit file** (`<name> Edit 1.tracktionedit`, in the Waveform project folder). Keep the folder as Waveform left it: MusicDAWM finds the audio through the project file (`<name>.tracktion`) next to the edit, or by file name in that folder if the files were moved.
+3. You get a summary like the DAWproject import.
+
+What comes across: tracks (named after their audio files, since Waveform does not store default names like "Track 1"; mono files give mono tracks), clip positions, trims, clip gain, fades, faders, pan, mute, solo, master level, tempo and time signature, markers, MIDI clips. Plug-ins, aux sends, clip pan, time-stretch and loops are listed in the summary. Waveform 14 has no `.tracktion` file and can export DAWproject itself; use **Import DAWproject** for it.
+
+**Session → Convert Waveform Project to DAWproject…** writes the same song as a `.dawproject` file with the audio inside, to open in other programs (Cubase 14, Studio One, Bitwig) or to keep as an archive.
+
+**Cubase: Session → Import Cubase Project…** explains the one step needed in Cubase: Cubase's own `.cpr` files cannot be read (the format is not published), so export the project from Cubase 14.0.20 or later as DAWproject (*File → Export → DAWproject*), then pick that file. Older Cubase versions cannot export DAWproject; export the tracks as audio files instead and import them with *Import Audio/MIDI files*.
+
+## 9. Coming next
 
 None of these are available yet. Each work package adds its section to this guide when it ships.
 
@@ -146,7 +160,6 @@ None of these are available yet. Each work package adds its section to this guid
 |---|---|---|
 | Songwriter layout and start screen | Recording controls hidden; "New song from WAV files" imports your Zoom R8 tracks aligned in one step | WP2 |
 | Tap Tempo Map | Tap a key along with a recording played without a click, and the bar grid follows the performance | WP4 |
-| Waveform 11 and Cubase import | Menu entries that bring your old projects across | WP6 |
 | Limiter and one-click freeze | A master limiter; freeze a track's plugins with one click and unfreeze later | WP7 |
 | CLAP plugins | Load CLAP plugins such as Surge XT | WP8 |
 | Melodyne via ARA | Open a clip in Melodyne essential directly; corrections follow when you move or trim the clip | WP9 |
@@ -158,6 +171,8 @@ None of these are available yet. Each work package adds its section to this guid
 The folder also contains Ardour's command-line session tools under MusicDAWM names (`musicdawm9-new_session.exe`, `musicdawm9-new_empty_session.exe`, `musicdawm9-export.exe`, `musicdawm9-lua.exe`), which work as in Ardour.
 
 `musicdawm9-mother_smoke.exe` is MusicDAWM's own self-test. It builds a test session from seven WAV files with the exact track names of the "Mother" reference project, checks it, saves it and reopens it. It is meant for the build pipeline, not for your songs: it only accepts the generated test files from `tools/mother-smoke/make_wavs.py`.
+
+`musicdawm9-waveform_test.exe` checks the Waveform import, and with `--convert <edit> <out.dawproject>` converts a Waveform edit to a DAWproject file.
 
 `musicdawm9-dawproject_test.exe` checks the DAWproject import against a test file made by `tools/dawproject/make_test_project.py`.
 

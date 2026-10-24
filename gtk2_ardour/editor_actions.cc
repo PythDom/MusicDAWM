@@ -659,6 +659,11 @@ Editor::register_actions ()
 	ActionManager::write_sensitive_actions.push_back (act);
 	act = reg_sens (editor_actions, X_("importDAWproject"), _("Import DAWproject..."), sigc::mem_fun (*this, &Editor::external_dawproject_dialog));
 	ActionManager::write_sensitive_actions.push_back (act);
+	act = reg_sens (editor_actions, X_("importWaveform"), _("Import Waveform Project..."), sigc::mem_fun (*this, &Editor::external_waveform_dialog));
+	ActionManager::write_sensitive_actions.push_back (act);
+	act = reg_sens (editor_actions, X_("importCubase"), _("Import Cubase Project..."), sigc::mem_fun (*this, &Editor::external_cubase_dialog));
+	ActionManager::write_sensitive_actions.push_back (act);
+	reg_sens (editor_actions, X_("convertWaveform"), _("Convert Waveform Project to DAWproject..."), sigc::mem_fun (*this, &Editor::convert_waveform_dialog));
 
 	act = reg_sens (editor_actions, X_("LoudnessAssistant"), _("Loudness Assistant..."), sigc::bind (sigc::mem_fun (*this, &Editor::loudness_assistant), false));
 	ActionManager::write_sensitive_actions.push_back (act);

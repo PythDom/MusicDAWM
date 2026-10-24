@@ -193,6 +193,7 @@ public:
 	}
 
 	bool run (string const& path);
+	bool run_xml (string const& xml, string const& base_dir);
 
 private:
 	Session&                  _session;
@@ -222,6 +223,7 @@ private:
 	}
 
 	bool extract (string const& path);
+	bool build (XMLNode const* project);
 	void index_ids (XMLNode const*);
 	void transport (XMLNode const* project, XMLNode const* arrangement);
 	void structure (XMLNode const*);
@@ -306,13 +308,32 @@ Importer::run (string const& path)
 		note (_("The file is not a DAWproject archive (no project.xml)."));
 		return false;
 	}
-
 	XMLTree tree;
-	if (!tree.read (Glib::build_filename (_dir, "project.xml"))) {
+	bool    ok = tree.read (Glib::build_filename (_dir, "project.xml"));
+	if (!ok) {
 		note (_("project.xml could not be read."));
+	} else {
+		ok = build (tree.root ());
+	}
+	PBD::remove_directory (_dir);
+	return ok;
+}
+
+bool
+Importer::run_xml (string const& xml, string const& base_dir)
+{
+	_dir = base_dir;
+	XMLTree tree;
+	if (!tree.read_buffer (xml.c_str ())) {
+		note (_("The project could not be read."));
 		return false;
 	}
-	XMLNode const* project = tree.root ();
+	return build (tree.root ());
+}
+
+bool
+Importer::build (XMLNode const* project)
+{
 	if (!project || project->name () != "Project") {
 		note (_("project.xml is not a DAWproject project."));
 		return false;
@@ -361,8 +382,6 @@ Importer::run (string const& path)
 	if (first < last) {
 		_session.maybe_update_session_range (first, last);
 	}
-
-	PBD::remove_directory (_dir);
 	return true;
 }
 
@@ -1042,6 +1061,27 @@ Importer::points (XMLNode const* p, Context const& ctx)
 	if (!target) {
 		return;
 	}
+	if (attr (target, "expression") == "gain" && !_clip_regions.empty ()) {
+		/* clip gain: a constant value becomes the regions' gain */
+		vector<double> vals;
+		for (auto const* c : p->children ()) {
+			if (c->name () == "RealPoint") {
+				vals.push_back (num (c, "value"));
+			}
+		}
+		if (!vals.empty ()) {
+			gain_t const g = volume_coeff (p, vals.front ());
+			for (auto const& r : _clip_regions) {
+				if (std::shared_ptr<AudioRegion> ar = std::dynamic_pointer_cast<AudioRegion> (r)) {
+					ar->set_scale_amplitude (g);
+				}
+			}
+			if (std::any_of (vals.begin (), vals.end (), [&] (double v) { return fabs (v - vals.front ()) > 1e-6; })) {
+				note (_("Clip gain envelopes were imported as a constant gain (their first value)."));
+			}
+		}
+		return;
+	}
 	if (has_attr (target, "expression")) {
 		note (string_compose (_("Automation of \"%1\" (%2) was not imported."), ctx.route ? ctx.route->name () : string ("?"), attr (target, "expression")));
 		return;
@@ -1122,5 +1162,14 @@ DAWProjectImport::import (Session& session, string const& path)
 	Result   r;
 	Importer imp (session, r);
 	r.ok = imp.run (path);
+	return r;
+}
+
+DAWProjectImport::Result
+DAWProjectImport::import_xml (Session& session, string const& xml, string const& base_dir)
+{
+	Result   r;
+	Importer imp (session, r);
+	r.ok = imp.run_xml (xml, base_dir);
 	return r;
 }

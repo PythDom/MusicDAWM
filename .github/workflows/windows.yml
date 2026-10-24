@@ -87,6 +87,16 @@ jobs:
           python3 tools/dawproject/make_test_project.py "$T/test.dawproject"
           export PATH="$PWD/stage/bin:/usr/bin:/c/Windows/System32:/c/Windows"
           stage/bin/musicdawm9-dawproject_test.exe "$(cygpath -m "$T/dawproject")" "$(cygpath -m "$T/test.dawproject")"
+      - name: Waveform import test (bundle only)
+        run: |
+          T=$(cygpath -u "$RUNNER_TEMP"); W="$T/waveform"
+          python3 tools/waveform/make_test_project.py "$W"
+          export PATH="$PWD/stage/bin:/usr/bin:/c/Windows/System32:/c/Windows"
+          X=stage/bin/musicdawm9-waveform_test.exe; m () { cygpath -m "$1"; }
+          $X "$(m "$T/wf-xml")" "$(m "$W/Mother Edit 1.tracktionedit")"
+          $X "$(m "$T/wf-bin")" "$(m "$W/Mother Edit 2.tracktionedit")"
+          $X --convert "$(m "$W/Mother Edit 1.tracktionedit")" "$(m "$T/Mother.dawproject")"
+          $X "$(m "$T/wf-dp")" "$(m "$T/Mother.dawproject")"
       - name: Zip
         run: |
           name="MusicDAWM-${{ steps.version.outputs.version }}-win64"

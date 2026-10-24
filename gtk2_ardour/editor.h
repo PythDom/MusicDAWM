@@ -1320,6 +1320,9 @@ private:
 	/* PT import specific */
 	void external_pt_dialog ();
 	void external_dawproject_dialog (); /* MusicDAWM */
+	void external_waveform_dialog ();
+	void external_cubase_dialog ();
+	void convert_waveform_dialog ();
 	ARDOUR::ImportStatus import_pt_status;
 	static void*_import_pt_thread (void*);
 	void* import_pt_thread ();

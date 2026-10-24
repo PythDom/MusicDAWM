@@ -9,7 +9,8 @@
  * tracks (audio and MIDI, folder tracks flattened), effect and group
  * channels as busses, output routing, sends, volume, pan, mute, solo,
  * colours, audio clips (offsets, fades, loops, disabled clips), notes, and
- * volume/pan/mute automation. Plug-ins and anything else are listed in the
+ * volume/pan/mute automation, and a constant clip gain (gain automation
+ * inside a clip). Plug-ins and anything else are listed in the
  * report instead.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -49,6 +50,10 @@ public:
 	 * import creates routes, which Ardour does not undo.
 	 */
 	static Result import (Session&, std::string const& path);
+
+	/* The same from a project.xml in memory; file paths in it are relative
+	 * to `base_dir` (or absolute). Used by the Waveform import. */
+	static Result import_xml (Session&, std::string const& xml, std::string const& base_dir);
 };
 
 } /* namespace ARDOUR */
