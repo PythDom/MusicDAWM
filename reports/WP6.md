@@ -33,11 +33,11 @@
 | Written `project.xml` against the official `Project.xsd` | validates |
 | DAWproject import test (WP5), after adding in-memory import and clip gain | 44/44 |
 | GUI (Linux, Xvfb): Session → Import Waveform Project… on the binary edit | tracks, clip gain and the marker shown; summary dialog |
-| Windows CI: the three Waveform runs against the portable folder, plus all earlier tests | *see CI below* |
+| Windows CI: the three Waveform runs against the portable folder, plus all earlier tests | pass |
 
 ## CI
 
-*Filled in when the Windows run on the WP6 commit finishes.*
+Green on `173906f752`: `Windows build` run 40070543662 (started by hand, D-030; 20 min, 96.4% compiler-cache hits). It runs the Mother smoke test, the Drum Studio test, the DAWproject test and the three Waveform runs (XML, binary, converted `.dawproject`), all from the portable folder. `Linux build` is green too.
 
 ## Known issues
 
