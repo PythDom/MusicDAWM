@@ -26,11 +26,17 @@ case "$(uname -s)" in
 	MINGW*|MSYS*) GEN=(-G "MSYS Makefiles" -DCMAKE_CXX_FLAGS="-include cstdint") ;;
 esac
 
+case "$(uname -s)" in
+	# MinGW has no std::aligned_alloc; use _aligned_malloc as for MSVC
+	MINGW*|MSYS*) sed -i 's/#elif defined(_MSC_VER)$/#elif defined(_MSC_VER) || defined(__MINGW32__)/; s/^#if defined(_MSC_VER)$/#if defined(_MSC_VER) || defined(__MINGW32__)/' \
+		ARA_SDK/vst3sdk/public.sdk/source/vst/utility/alignedalloc.h ;;
+esac
+
 cmake -S ARA_SDK/ARA_Examples -B build "${GEN[@]}" -DCMAKE_BUILD_TYPE=Release \
 	-DARA_API_DIR="$WORK/ARA_SDK/ARA_API" -DARA_LIBRARY_DIR="$WORK/ARA_SDK/ARA_Library" \
 	-DARA_VST3_SDK_DIR="$WORK/ARA_SDK/vst3sdk" \
 	-DSMTG_RUN_VST_VALIDATOR=OFF -DSMTG_CREATE_PLUGIN_LINK=OFF -DSMTG_ADD_VST3_UTILITIES=OFF >&2
-cmake --build build --config Release --target ARATestPlugInVST3 -j"$(nproc)" >&2
+cmake --build build --config Release --target ARATestPlugInVST3 -j"$(nproc)" -- -k >&2
 
 # the plug-in: its bundle (ARATestPlugIn.vst3/Contents/<arch>/...) if there is
 # one, else the single-file module
