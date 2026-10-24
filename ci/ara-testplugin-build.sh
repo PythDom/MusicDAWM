@@ -22,7 +22,8 @@ fi
 
 GEN=()
 case "$(uname -s)" in
-	MINGW*|MSYS*) GEN=(-G "MSYS Makefiles") ;;
+	# GCC 16 (MSYS2): ARA_Examples' ICST_AudioFile uses int64_t without <cstdint>
+	MINGW*|MSYS*) GEN=(-G "MSYS Makefiles" -DCMAKE_CXX_FLAGS="-include cstdint") ;;
 esac
 
 cmake -S ARA_SDK/ARA_Examples -B build "${GEN[@]}" -DCMAKE_BUILD_TYPE=Release \
