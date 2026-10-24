@@ -31,7 +31,9 @@ case "$(uname -s)" in
 	MINGW*|MSYS*) sed -i 's/#elif defined(_MSC_VER)$/#elif defined(_MSC_VER) || defined(__MINGW32__)/; s/^#if defined(_MSC_VER)$/#if defined(_MSC_VER) || defined(__MINGW32__)/' \
 		ARA_SDK/vst3sdk/public.sdk/source/vst/utility/alignedalloc.h
 	# windres cannot join string literals; the file is only version info
-	echo '// version info left out for MinGW (test build)' > ARA_SDK/ARA_Examples/ExamplesCommon/Windows/ARAExamples.rc ;;
+	# (an empty file is refused too, hence one string)
+	printf '%s\n' '// version info left out for MinGW (test build)' 'STRINGTABLE' 'BEGIN' '  1 "ARATestPlugIn"' 'END' \
+		> ARA_SDK/ARA_Examples/ExamplesCommon/Windows/ARAExamples.rc ;;
 esac
 
 cmake -S ARA_SDK/ARA_Examples -B build "${GEN[@]}" -DCMAKE_BUILD_TYPE=Release \
