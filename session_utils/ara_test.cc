@@ -244,9 +244,18 @@ first (string const& dir, string const& module)
 	}
 	check (saved, "ARA data saved with the session");
 
+	/* close: the plug-in goes with the session, then its ARA document */
+	plugin.reset ();
+	rfx.reset ();
+	r.reset ();
+	whole.reset ();
+	src.reset ();
+	t.reset ();
+	SessionUtils::unload_session (s);
+	check (ARAHost::documents_alive () == 0, "after closing: the ARA document is gone (and the plug-in uninitialized)");
+
 	printf ("%s: %d failure(s)\n", failures ? "FAILED" : "PASSED", failures);
 	fflush (stdout);
-	SessionUtils::unload_session (s);
 	_exit (failures ? 1 : 0);
 }
 
@@ -276,9 +285,12 @@ reload (string const& dir, string const& module)
 	check (restored && notes.size () == 2 && fabs (notes.back ().start - 11.5) < 0.01, "after loading: the plug-in's notes are restored from the saved data");
 	check (r && renders (r, 10 * SR + SR / 2 + 100, 4096), "after loading: renders as before");
 
+	r.reset ();
+	SessionUtils::unload_session (s);
+	check (ARAHost::documents_alive () == 0, "after closing: the ARA document is gone (and the plug-in uninitialized)");
+
 	printf ("%s: %d failure(s)\n", failures ? "FAILED" : "PASSED", failures);
 	fflush (stdout);
-	SessionUtils::unload_session (s);
 	_exit (failures ? 1 : 0);
 }
 

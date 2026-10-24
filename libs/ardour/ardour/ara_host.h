@@ -79,6 +79,9 @@ public:
 	/* For tests: the number of playback regions in the session's documents,
 	 * and of samples the plug-ins read from the sources. */
 	static size_t playback_regions (Session&);
+	/* documents alive, including those waiting for their plug-ins after
+	 * their session has gone (0 once everything is closed) */
+	static size_t documents_alive ();
 	static int64_t samples_read ();
 
 	/* For tests: the notes the plug-in found in the region (content type

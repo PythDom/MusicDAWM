@@ -211,6 +211,15 @@ struct Document
 };
 
 std::map<std::pair<Session*, string>, Document*> documents;
+std::map<ARA::ARAFactory const*, int>            factory_users; /* documents per factory */
+
+void
+release_factory (ARA::ARAFactory const* f)
+{
+	if (--factory_users[f] == 0) {
+		f->uninitializeARA ();
+	}
+}
 std::set<Document*>                              orphans;
 std::atomic<int64_t>                             total_read (0);
 
@@ -240,12 +249,13 @@ Document::Document (Session& s, ARA::ARAFactory const* f)
 	, bound (0)
 	, orphaned (false)
 {
-	static std::set<ARA::ARAFactory const*> initialized;
 	if (f->lowestSupportedApiGeneration > ARA::kARAAPIGeneration_2_0_Final || f->highestSupportedApiGeneration < ARA::kARAAPIGeneration_2_0_Final) {
 		error << string_compose (_("ARA: %1 needs an ARA version this program does not support."), f->plugInName) << endmsg;
 		return;
 	}
-	if (initialized.insert (f).second) {
+	/* the factory is initialized while it has documents (ARA 2: every
+	 * initializeARA is matched by an uninitializeARA) */
+	if (factory_users[f]++ == 0) {
 		ARA::SizedStruct<ARA_STRUCT_MEMBER (ARAInterfaceConfiguration, assertFunctionAddress)> config;
 		config.desiredApiGeneration  = ARA::kARAAPIGeneration_2_0_Final;
 		config.assertFunctionAddress = nullptr;
@@ -258,6 +268,7 @@ Document::Document (Session& s, ARA::ARAFactory const* f)
 	ARA::ARADocumentControllerInstance const* inst = f->createDocumentControllerWithDocument (&host_instance, &props);
 	if (!inst) {
 		error << string_compose (_("ARA: %1 could not create a document."), f->plugInName) << endmsg;
+		release_factory (f);
 		return;
 	}
 	dc = new ARA::Host::DocumentController (inst);
@@ -304,6 +315,7 @@ Document::~Document ()
 	end ();
 	dc->destroyDocumentController ();
 	delete dc;
+	release_factory (factory);
 }
 
 void drop_region (Document*, HostPlaybackRegion*, bool suspend = true);
@@ -899,6 +911,12 @@ ARAHost::playback_regions (Session& s)
 		}
 	}
 	return n;
+}
+
+size_t
+ARAHost::documents_alive ()
+{
+	return documents.size () + orphans.size ();
 }
 
 int64_t

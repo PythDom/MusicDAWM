@@ -43,13 +43,15 @@
 | The notes follow the trim (11.5 s) | pass | |
 | Region gain 0.5 applies after the ARA rendering | pass | |
 | ARA data file written on save | pass | |
+| After closing (both runs): the ARA document is gone and the plug-in uninitialized | pass | |
 | Reload in a new process: ARA mode again, one playback region, notes restored from the saved data (no new analysis), renders as before | pass | |
 | No regressions: libardour unit tests (25 OK), Mother smoke + export (343.0 s), Drum Studio, DAWproject, Waveform (XML and binary) | pass | |
 
-Two things were found by the SDK's validating plug-in and fixed:
+Three things were found by the SDK's validating plug-in and fixed:
 
 - Playback regions must be added or removed only while the plug-in is inactive.
 - The document must outlive the plug-in instances bound to it when a session closes.
+- Each `initializeARA` must be matched by `uninitializeARA` once the plug-in's last document is gone (seen on Windows, where the plug-in checks this when it unloads).
 
 ## Known limits
 
