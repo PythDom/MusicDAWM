@@ -23,7 +23,7 @@
 
 | ID | Status |
 |---|---|
-| S4 / WP6: Waveform 11 and Cubase migration | Pass on a generated Mother-shaped Waveform project, in XML and in binary form, and through the `.dawproject` written from it. IOdaw's prototype reader, which was checked on the real Mother project, reads the generated files the same way. **The real Mother project and a real Cubase export have not been tried here**; they are the user's acceptance step. |
+| S4 / WP6: Waveform 11 and Cubase migration | Pass on a generated Mother-shaped Waveform project, in XML and in binary form, and through the `.dawproject` written from it. IOdaw's prototype reader, which was checked on the real Mother project, reads the generated files the same way. **Real Mother project (2026-10-28): pass.** The user imported `Mother Edit 1.tracktionedit` (Waveform 11.0.24) in the Windows build; every clip matched the edit file: 7 tracks (the 7th has no clip in Waveform either), 7 clips, clip gains +2.85 / +9.91 / +14.91 / +14.66 / +7.37 and −0.06 at the 292 s split / +15.16 dB, track 4 muted, no markers, all audio found. A real Cubase export has not been tried (the user no longer has Cubase). |
 
 ## Tests
 
