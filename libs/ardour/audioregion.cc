@@ -2816,6 +2816,19 @@ AudioRegion::set_playlist (std::weak_ptr<Playlist> wpl)
 }
 
 void
+AudioRegion::ara_content_changed ()
+{
+	{
+		PBD::Mutex::Lock cl (_cache_lock);
+		_cache_start = _cache_end = -1;
+		_cache_tail  = 0;
+	}
+	/* as for a Region FX parameter change: the disk reader reads the region again */
+	_invalidated.store (true);
+	send_change (PropertyChange (Properties::region_fx));
+}
+
+void
 AudioRegion::ara_update ()
 {
 	std::shared_ptr<Plugin> ara;

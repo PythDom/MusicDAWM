@@ -177,6 +177,8 @@ class LIBARDOUR_API AudioRegion : public Region, public AudioReadable
 	 * Region FX is a playback region of that plug-in's ARA document */
 	void set_playlist (std::weak_ptr<ARDOUR::Playlist>);
 	void ara_update ();
+	/* the ARA plug-in's output changed: drop what was rendered */
+	void ara_content_changed ();
 #endif
 	void reorder_plugins (RegionFxList const&);
 

@@ -244,6 +244,18 @@ first (string const& dir, string const& module)
 	notes.clear ();
 	check (ARAHost::region_notes (r.get (), notes) && !notes.empty () && fabs (notes.back ().start - 11.5) < 0.01, "trimmed: the notes follow (second note at 11.5 s)");
 
+	/* an edit in the plug-in (e.g. a Melodyne pitch change) is reported as a
+	 * content change: the region must be read again */
+	{
+		bool                  refreshed = false;
+		PBD::ScopedConnection c;
+		r->PropertyChanged.connect_same_thread (c, [&refreshed] (PBD::PropertyChange const& what) {
+			refreshed |= what.contains (Properties::region_fx);
+		});
+		bool const sent = ARAHost::simulate_content_change (r.get ());
+		check (sent && refreshed && renders (r, 10 * SR + SR, 4096), "a change of the plug-in's output makes the region read again");
+	}
+
 	r->set_scale_amplitude (0.5);
 	check (renders (r, 10 * SR + SR, 4096, 0.5), "region gain applies after the ARA rendering");
 	r->set_scale_amplitude (1.0);

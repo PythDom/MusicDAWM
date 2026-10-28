@@ -197,9 +197,40 @@ struct Document
 
 	/* ModelUpdateController: the plug-in's analysis needs no host action */
 	void notifyAudioSourceAnalysisProgress (ARA::ARAAudioSourceHostRef, ARA::ARAAnalysisProgressState, float) noexcept override {}
-	void notifyAudioSourceContentChanged (ARA::ARAAudioSourceHostRef, const ARA::ARAContentTimeRange*, ARA::ContentUpdateScopes) noexcept override {}
-	void notifyAudioModificationContentChanged (ARA::ARAAudioModificationHostRef, const ARA::ARAContentTimeRange*, ARA::ContentUpdateScopes) noexcept override {}
-	void notifyPlaybackRegionContentChanged (ARA::ARAPlaybackRegionHostRef, const ARA::ARAContentTimeRange*, ARA::ContentUpdateScopes) noexcept override {}
+	/* the plug-in's output changed (e.g. a pitch edit in Melodyne): the regions
+	 * it renders must be read again, as when a Region FX parameter changes */
+	void notifyAudioSourceContentChanged (ARA::ARAAudioSourceHostRef s, const ARA::ARAContentTimeRange*, ARA::ContentUpdateScopes scopes) noexcept override
+	{
+		if (scopes.affectSamples ()) {
+			HostAudioSource* src = fromHostRef (s);
+			refresh ([src] (HostPlaybackRegion const* pr) { return pr->modification->source == src; });
+		}
+	}
+	void notifyAudioModificationContentChanged (ARA::ARAAudioModificationHostRef m, const ARA::ARAContentTimeRange*, ARA::ContentUpdateScopes scopes) noexcept override
+	{
+		if (scopes.affectSamples ()) {
+			HostAudioModification* mod = fromHostRef (m);
+			refresh ([mod] (HostPlaybackRegion const* pr) { return pr->modification == mod; });
+		}
+	}
+	void notifyPlaybackRegionContentChanged (ARA::ARAPlaybackRegionHostRef r, const ARA::ARAContentTimeRange*, ARA::ContentUpdateScopes scopes) noexcept override
+	{
+		if (scopes.affectSamples ()) {
+			HostPlaybackRegion* p = fromHostRef (r);
+			refresh ([p] (HostPlaybackRegion const* pr) { return pr == p; });
+		}
+	}
+	template <typename F>
+	void refresh (F matches)
+	{
+		for (auto& [r, pr] : regions) {
+			if (matches (pr)) {
+				const_cast<AudioRegion*> (r)->ara_content_changed ();
+				++content_changes;
+			}
+		}
+	}
+	int content_changes = 0;
 	void notifyDocumentDataChanged () noexcept override { _session.set_dirty (); }
 
 	/* PlaybackController: the plug-in's transport buttons */
@@ -911,6 +942,19 @@ ARAHost::playback_regions (Session& s)
 		}
 	}
 	return n;
+}
+
+bool
+ARAHost::simulate_content_change (AudioRegion const* region)
+{
+	for (auto& [k, d] : documents) {
+		auto i = d->regions.find (region);
+		if (i != d->regions.end ()) {
+			d->notifyPlaybackRegionContentChanged (toHostRef (i->second), nullptr, ARA::ContentUpdateScopes::samplesAreAffected ());
+			return true;
+		}
+	}
+	return false;
 }
 
 size_t

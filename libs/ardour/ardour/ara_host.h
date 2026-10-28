@@ -79,6 +79,10 @@ public:
 	/* For tests: the number of playback regions in the session's documents,
 	 * and of samples the plug-ins read from the sources. */
 	static size_t playback_regions (Session&);
+	/* For tests: act as if the plug-in reported that its output for this
+	 * region changed (as Melodyne does after an edit); false if the region
+	 * is not rendered by an ARA plug-in. */
+	static bool simulate_content_change (AudioRegion const*);
 	/* documents alive, including those waiting for their plug-ins after
 	 * their session has gone (0 once everything is closed) */
 	static size_t documents_alive ();
