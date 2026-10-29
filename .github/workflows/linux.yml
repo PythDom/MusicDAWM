@@ -57,6 +57,11 @@ jobs:
           python3 tools/dawproject/make_test_project.py "$RUNNER_TEMP/test.dawproject"
           export TOP="$PWD"; . build/gtk2_ardour/ardev_common_waf.sh
           build/session_utils/musicdawm9-dawproject_test "$RUNNER_TEMP/dawproject" "$RUNNER_TEMP/test.dawproject"
+      - name: Tap Tempo Map test
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          export TOP="$PWD"; . build/gtk2_ardour/ardev_common_waf.sh
+          build/session_utils/musicdawm9-tap_tempo_test "$RUNNER_TEMP/taps"
       - name: Waveform import test
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |

@@ -42,6 +42,7 @@
 #include "public_editor.h"
 #include "virtual_keyboard_window.h"
 #include "drum_studio_panel.h"
+#include "tap_tempo_window.h"
 
 #include "gtkmm2ext/debug.h"
 #include "gtkmm2ext/utils.h"
@@ -69,6 +70,11 @@ ARDOUR_UI::key_event_handler (GdkEventKey* ev, Gtk::Window* event_window)
 
 	/* MusicDAWM Drum Studio perform keys, only while switched on */
 	if (DrumStudioPanel::key_press (ev)) {
+		return true;
+	}
+
+	/* MusicDAWM Tap Tempo Map: T taps while its window has the key */
+	if (TapTempoWindow::key_press (ev)) {
 		return true;
 	}
 

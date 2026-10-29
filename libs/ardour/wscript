@@ -65,6 +65,7 @@ libardour_sources = [
         'disk_writer.cc',
         'dawproject_import.cc',
         'waveform_import.cc',
+        'tap_tempo.cc',
         'drum_studio.cc',
         'dsp_filter.cc',
         'ebur128_analysis.cc',

@@ -117,6 +117,11 @@ jobs:
           python3 tools/dawproject/make_test_project.py "$T/test.dawproject"
           export PATH="$PWD/stage/bin:/usr/bin:/c/Windows/System32:/c/Windows"
           stage/bin/musicdawm9-dawproject_test.exe "$(cygpath -m "$T/dawproject")" "$(cygpath -m "$T/test.dawproject")"
+      - name: Tap Tempo Map test (bundle only)
+        run: |
+          T=$(cygpath -u "$RUNNER_TEMP")
+          export PATH="$PWD/stage/bin:/usr/bin:/c/Windows/System32:/c/Windows"
+          stage/bin/musicdawm9-tap_tempo_test.exe "$(cygpath -m "$T/taps")"
       - name: Waveform import test (bundle only)
         run: |
           T=$(cygpath -u "$RUNNER_TEMP"); W="$T/waveform"

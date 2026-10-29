@@ -124,6 +124,7 @@
 #include "editor_section_box.h"
 #include "editor_sections.h"
 #include "drum_studio_panel.h"
+#include "tap_tempo_window.h"
 #include "editor_snapshots.h"
 #include "editor_sources.h"
 #include "editor_summary.h"
@@ -1299,6 +1300,9 @@ Editor::set_session (Session *t)
 
 	_trigger_clip_picker.set_session (_session);
 	_drum_studio->set_session (_session);
+	if (_tap_tempo_window) {
+		_tap_tempo_window->set_session (_session);
+	}
 	_application_bar.set_session (_session);
 	nudge_clock->set_session (_session);
 	_summary->set_session (_session);
@@ -5625,6 +5629,16 @@ Editor::action_menu_item (std::string const & name)
 	assert (a);
 
 	return *manage (a->create_menu_item ());
+}
+
+void
+Editor::show_tap_tempo_window ()
+{
+	if (!_tap_tempo_window) {
+		_tap_tempo_window = new TapTempoWindow (*this);
+		_tap_tempo_window->set_session (_session);
+	}
+	_tap_tempo_window->present ();
 }
 
 void

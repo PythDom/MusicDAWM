@@ -158,6 +158,7 @@ class RegionLayeringOrderEditor;
 class VerboseCursor;
 
 class DrumStudioPanel;
+class TapTempoWindow;
 
 class Editor : public PublicEditor, public PBD::ScopedConnectionList
 {
@@ -169,6 +170,7 @@ public:
 
 	/* MusicDAWM: show the Drum Studio page of the sidebar */
 	void show_drum_studio ();
+	void show_tap_tempo_window (); /* MusicDAWM WP4 */
 
 	Gtk::Window* use_own_window (bool and_fill_it);
 
@@ -1036,6 +1038,7 @@ private:
 
 	TriggerClipPicker    _trigger_clip_picker;
 	DrumStudioPanel*     _drum_studio;
+	TapTempoWindow*      _tap_tempo_window = nullptr;
 	Gtk::Widget*         _drum_studio_page;
 
 	void control_vertical_zoom_in_all ();

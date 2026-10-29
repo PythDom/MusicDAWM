@@ -5,7 +5,7 @@ This guide covers only what is **specific to MusicDAWM**. Everything that works 
 
 *Status: 2026-10-24, MusicDAWM 0.1.0 (work packages WP1, WP3, WP5, WP6, WP9).*
 
-> **What exists today.** MusicDAWM is Ardour 9.8 under its own name (§4), packaged as a portable Windows folder, with Drum Studio (§6), DAWproject import (§7), Waveform and Cubase migration (§8) and Melodyne through ARA (§9). §10 lists what is still to come.
+> **What exists today.** MusicDAWM is Ardour 9.8 under its own name (§4), packaged as a portable Windows folder, with Drum Studio (§6), DAWproject import (§7), Waveform and Cubase migration (§8), Melodyne through ARA (§9, on hold: see there) and the Tap Tempo Map (§10). §11 lists what is still to come.
 
 ## 1. Getting the program
 
@@ -156,7 +156,7 @@ What comes across: tracks (named after their audio files, since Waveform does no
 
 ARA lets a plug-in such as Melodyne work on a clip directly: it sees the whole clip, not just what passes through it while the song plays, so there is no "Transfer" step.
 
-> **Not yet tried with Melodyne itself.** ARA hosting is tested with the ARA SDK's own test plug-in (analysis, playback, moves, trims, saving and reopening). The first test with your Melodyne essential is the acceptance step (see `reports/WP9.md`); if anything below does not match what you see, please report it.
+> **On hold (October 2026).** Tried with Melodyne essential: the clip opens in Melodyne and deleted notes are silent, but **pitch changes are not heard** and Melodyne **crashes often**. Until this is fixed, use Melodyne as a normal plug-in on the track (Transfer mode). Details: `reports/WP9.md`.
 
 **Open a clip in Melodyne**
 
@@ -181,14 +181,36 @@ ARA lets a plug-in such as Melodyne work on a clip directly: it sees the whole c
 - Other ARA plug-ins in VST3 format go through the same path, but none has been tried. Only VST3 is supported (no CLAP ARA yet).
 - **Licence:** because the ARA library is Apache-2.0, the Windows program is distributed under the **GNU GPL version 3** (the source stays "GPL version 2 or later"). The licence texts are in the `licences` folder.
 
-## 10. Coming next
+## 10. Tap Tempo Map
+
+For songs recorded without a click (like your Zoom R8 sessions): tap along while the song plays, and the bar grid follows the performance. Drum Studio parts, MIDI and anything snapped to the grid then line up with the music.
+
+**Edit → Tempo → Tap Tempo Map…**
+
+1. Choose what you tap on: **every beat** or **every bar start**, and the **time signature** (for example 4/4, 3/4 or 6/8).
+2. Start playback (Space) from a little before the first beat, and **press T** (or click **Tap**) in time with the song. The **first tap is bar 1**, so start tapping on the first downbeat; a count-in or silence before it is fine.
+3. Stop playback when you are done. Each time the song plays is a **take**: to fix a passage, play it again and tap only that passage; the new taps replace the old ones there.
+4. Click **Apply to the tempo map**. The window says how many taps were used, how many double taps were ignored and how many missed taps were filled in.
+
+Options:
+- **Smooth my timing** (on by default) evens out small timing wobble in your taps while following the real tempo changes of the performance.
+- **Snap taps to the hits of:** pick a track with clear attacks (drums, a strummed guitar). Each tap then moves onto the nearest hit, so the grid lands exactly on the beat even if your tapping was a little loose. Taps far from any hit stay where they were.
+
+What changes and what does not:
+- **Audio stays exactly where it was recorded.** Only the bar grid moves.
+- MIDI and Drum Studio parts follow bars and beats, so they move with the new grid.
+- The whole tempo map is replaced (tempo and time signature). **Edit → Undo** brings back the previous map in one step.
+- The grid can still be fine-tuned afterwards with Ardour's own tempo tools (drag the tempo markers).
+
+Good to know: tap times are taken from what you hear (the playback latency is compensated), so tapping is as accurate as your timing; with **Snap** it is as accurate as the hits on the chosen track.
+
+## 11. Coming next
 
 None of these are available yet. Each work package adds its section to this guide when it ships.
 
 | Feature | What it will do for you | Work package |
 |---|---|---|
 | Songwriter layout and start screen | Recording controls hidden; "New song from WAV files" imports your Zoom R8 tracks aligned in one step | WP2 |
-| Tap Tempo Map | Tap a key along with a recording played without a click, and the bar grid follows the performance | WP4 |
 | Limiter and one-click freeze | A master limiter; freeze a track's plugins with one click and unfreeze later | WP7 |
 | CLAP plugins | Load CLAP plugins such as Surge XT | WP8 |
 
@@ -201,6 +223,8 @@ The folder also contains Ardour's command-line session tools under MusicDAWM nam
 `musicdawm9-waveform_test.exe` checks the Waveform import, and with `--convert <edit> <out.dawproject>` converts a Waveform edit to a DAWproject file.
 
 `musicdawm9-ara_test.exe <folder> <ARATestPlugIn.vst3>` checks ARA hosting with the ARA SDK's test plug-in (not shipped); then `musicdawm9-ara_test.exe --reload <folder> <ARATestPlugIn.vst3>` checks that the saved session brings the plug-in's data back.
+
+`musicdawm9-tap_tempo_test.exe <folder>` checks the Tap Tempo Map on a simulated performance with a drifting tempo, sloppy, missed and double taps, and a click track for snapping.
 
 `musicdawm9-dawproject_test.exe` checks the DAWproject import against a test file made by `tools/dawproject/make_test_project.py`.
 
