@@ -135,6 +135,9 @@ jobs:
         run: |
           T=$(cygpath -u "$RUNNER_TEMP")
           P=$(cygpath -m "$(ls -d "$PWD"/ara-testplugin/ARATestPlugIn.vst3)")
+          # Ardour trusts a plug-in's scan cache only if the plug-in file is older
+          # (whole seconds); the downloaded plug-in is brand new
+          find "$PWD/ara-testplugin" -exec touch -d '1 hour ago' {} +
           export PATH="$PWD/stage/bin:/usr/bin:/c/Windows/System32:/c/Windows"
           stage/bin/musicdawm9-ara_test.exe "$(cygpath -m "$T/ara")" "$P"
           stage/bin/musicdawm9-ara_test.exe --reload "$(cygpath -m "$T/ara")" "$P"

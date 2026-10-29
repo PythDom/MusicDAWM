@@ -28,7 +28,7 @@
 
 | ID | Status |
 |---|---|
-| WP9: Melodyne opens a clip; edits follow moves and trims; edits are saved | **Pass with the ARA SDK's test plug-in** (it validates API use and has analysis, rendering and persistence). **Not yet tried with Melodyne:** that is the user's acceptance step (below). Time used: about 1 day of the 2-month limit. |
+| WP9: Melodyne opens a clip; edits follow moves and trims; edits are saved | **Pass with the ARA SDK's test plug-in. With Melodyne: on hold (2026-10-29), see below.** The Melodyne window opens with the clip, deletions are heard and edits are saved, but pitch changes are not heard and Melodyne crashes often. |
 
 ## Tests
 
@@ -59,6 +59,38 @@ Three things were found by the SDK's validating plug-in and fixed:
 - **Session utilities: pre-existing limitation, not ARA.** They cannot load a second session after unloading one in the same process: the process threads hang on teardown, with or without ARA. That is why the test reloads in a new process.
 - **Rendering thread.** Region FX renders ahead of playback in the disk thread (PHASE0 §3, risk 1). The test plug-in is fine with this. Melodyne should be too (it supports offline rendering), but only the real test will tell.
 - Only VST3 ARA, not CLAP ARA (WP8).
+
+## Melodyne results (user, 2026-10-28/29): on hold
+
+Melodyne essential (VST3), Windows build v0.1.0:
+
+| Step | Result |
+|---|---|
+| Melodyne as Region Effect; its window shows the clip | works |
+| Delete notes in Melodyne, play | the deletion is heard |
+| Change the pitch of notes, play (also after moving back, after a second change, after reopening the window) | **not heard**; the original pitch plays |
+| Save, close MusicDAWM, reopen the project, play | **still not heard**; Melodyne still shows the edits, so they were saved and restored |
+| General use | **frequent crashes**; no crash details collected yet |
+
+What this tells:
+- MusicDAWM plays Melodyne's ARA rendering (deletions come through), and the edits survive saving.
+- It is not stale buffered audio either: a fresh session still plays the old pitch.
+- So the problem is in how MusicDAWM asks Melodyne to render.
+
+The fix in commit `4a7a0f6789` (refresh a region when the plug-in reports changed output) is correct, but it does not explain this.
+
+Suspects:
+1. Region FX renders ahead of playback in offline (non-real-time) processing mode; Melodyne may resynthesise pitch edits only in real time.
+2. Two Melodyne instances on one clip, of which only the first knows the clip.
+3. Threads: rendering in the disk thread while the GUI edits the ARA document; or many Melodyne instances after splits or copies. This is a suspect for the crashes.
+
+Plan when resumed:
+- a diagnostic build that logs processing mode, block size, number of instances, position and the "playing" flag;
+- switches in Preferences for real-time rendering and for a single instance;
+- Event Viewer's "Faulting module name" for the crashes;
+- optionally, a check of Melodyne's ARA pitch edits in another ARA host.
+
+Workaround: Melodyne as a normal track plug-in (Transfer mode).
 
 ## Melodyne acceptance test (for the user)
 
