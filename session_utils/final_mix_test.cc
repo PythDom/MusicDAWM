@@ -3,6 +3,7 @@
  *
  * M1: the bundled x42 plug-ins (limiter, EQ with high-pass) load and do
  * their job, and freezing a track with a plug-in works and can be undone.
+ * M2: the master bus loudness meter (LUFS, true peak) while playing.
  *
  * The x42 bundles must be on the LV2 path (LV2_PATH, or the program's own
  * LV2 folder in the Windows bundle).
@@ -20,6 +21,8 @@
 #include <iostream>
 #include <unistd.h>
 
+#include <glibmm/timer.h>
+
 #include <glibmm/miscutils.h>
 
 #include "pbd/compose.h"
@@ -28,6 +31,7 @@
 #include "ardour/audioregion.h"
 #include "ardour/audiosource.h"
 #include "ardour/automation_control.h"
+#include "ardour/dB.h"
 #include "ardour/interthread_info.h"
 #include "ardour/lv2_plugin.h"
 #include "ardour/playlist.h"
@@ -36,6 +40,7 @@
 #include "ardour/plugin_manager.h"
 #include "ardour/region_factory.h"
 #include "ardour/region_fx_plugin.h"
+#include "ardour/route.h"
 #include "ardour/session.h"
 #include "ardour/source_factory.h"
 
@@ -242,6 +247,45 @@ main (int argc, char* argv[])
 	ft->unfreeze ();
 	check (ft->freeze_state () == Track::UnFrozen && ft->playlist ()->name () == playlist_before && ft->playlist ()->region_list ()->size () == regions_before, "unfreeze: the original regions and plug-ins are back");
 	(void)fr;
+
+	/* ---- M2: master loudness while playing ---- */
+	Session::MasterLoudness l0 = s->master_loudness ();
+	check (!s->master_loudness_metering () && l0.integrated <= -200, "loudness: off until asked for");
+	/* only a 1 kHz tone at -20 dBFS plays; centre panning (-3 dB per side) */
+	for (auto const& r : *s->get_routes ()) {
+		if (!r->is_master () && !r->is_monitor ()) {
+			r->mute_control ()->set_value (1, PBD::Controllable::NoGroup);
+		}
+	}
+	string const tone = write_wav (dir, "tone", 8, [] (double t) { return float (0.1 * sin (2 * M_PI * 1000 * t)); });
+	std::shared_ptr<AudioTrack> tt;
+	add_track (*s, "Tone", tone, &tt);
+	s->set_master_loudness_metering (true);
+	/* let the new track's disk reader fill before playing */
+	s->request_locate (0, false, MustStop);
+	Glib::usleep (1000000);
+	s->request_locate (0, false, MustRoll);
+	Glib::usleep (4000000);
+	Session::MasterLoudness const l1 = s->master_loudness ();
+	s->request_stop ();
+	Glib::usleep (300000);
+	/* two channels at 0.1/sqrt(2) peak; at 1 kHz the K-weighting (+0.69 dB)
+	 * cancels the -0.691 of the LUFS formula */
+	double const expect = 10 * log10 (2 * 0.5 * pow (0.1 * M_SQRT1_2, 2));
+	printf ("   tone: momentary %.2f, integrated %.2f LUFS (expected %.2f), true peak %.2f dBTP\n", l1.momentary, l1.integrated, expect, l1.true_peak);
+	check (fabs (l1.integrated - expect) < 0.5 && fabs (l1.momentary - expect) < 0.5, "loudness: a steady tone measures its known loudness");
+	check (fabs (l1.true_peak - 20 * log10 (0.1 * M_SQRT1_2)) < 0.5, "loudness: true peak of the tone");
+
+	/* a new playback run starts a new measurement: 6 dB quieter */
+	tt->gain_control ()->set_value (dB_to_coefficient (-6), PBD::Controllable::NoGroup);
+	s->request_locate (0, false, MustRoll);
+	Glib::usleep (3000000);
+	Session::MasterLoudness const l2 = s->master_loudness ();
+	s->request_stop ();
+	Glib::usleep (300000);
+	printf ("   6 dB quieter: integrated %.2f LUFS\n", l2.integrated);
+	check (fabs (l2.integrated - (expect - 6)) < 0.5, "loudness: a new playback run measures afresh");
+	s->set_master_loudness_metering (false);
 
 	s->save_state ("");
 	printf ("%s: %d failure(s)\n", failures ? "FAILED" : "PASSED", failures);

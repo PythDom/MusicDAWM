@@ -33,13 +33,17 @@
 #include "temporal/tempo.h"
 
 #include "ardour/audioengine.h"
+#include "ardour/audio_port.h"
 #include "ardour/auditioner.h"
 #include "ardour/butler.h"
 #include "ardour/debug.h"
 #include "ardour/disk_reader.h"
 #include "ardour/graph.h"
+#include "ardour/io.h"
 #include "ardour/io_plug.h"
+#include "ardour/lufs_meter.h"
 #include "ardour/port.h"
+#include "ardour/port_set.h"
 #include "ardour/process_thread.h"
 #include "ardour/rt_tasklist.h"
 #include "ardour/scene_changer.h"
@@ -117,6 +121,10 @@ Session::process (pframes_t nframes)
 	if (io_graph_chain) {
 		_process_graph->process_io_plugs (io_graph_chain, nframes, 0);
 		io_graph_chain.reset (); /* drop reference */
+	}
+
+	if (_master_lufs_on.load ()) {
+		run_master_loudness (nframes);
 	}
 
 	/* realtime-safe meter-position and processor-order changes
@@ -1898,4 +1906,50 @@ void
 Session::clear_active_cue ()
 {
 	_active_cue.store (-1);
+}
+
+void
+Session::set_master_loudness_metering (bool yn)
+{
+	if (yn && !_master_lufs) {
+		/* made once, before the process thread can see it */
+		_master_lufs.reset (new LUFSMeter (nominal_sample_rate (), 2));
+	}
+	_master_lufs_on.store (yn && _master_lufs);
+}
+
+Session::MasterLoudness
+Session::master_loudness () const
+{
+	if (!_master_lufs) {
+		return { -200, -200, -200 };
+	}
+	return { _master_lufs->momentary (), _master_lufs->integrated_loudness (), _master_lufs->dbtp () };
+}
+
+void
+Session::run_master_loudness (pframes_t nframes)
+{
+	if (!_master_out || !_master_lufs) {
+		return;
+	}
+	bool const rolling = transport_rolling ();
+	if (_master_lufs_reset.exchange (false) || (rolling && !_master_lufs_rolling)) {
+		_master_lufs->reset ();
+	}
+	_master_lufs_rolling = rolling;
+	if (!rolling) {
+		return;
+	}
+	std::shared_ptr<PortSet const> ports = _master_out->output ()->ports ();
+	uint32_t const                 n     = ports->num_ports (DataType::AUDIO);
+	if (n == 0) {
+		return;
+	}
+	/* a mono master is measured as both channels */
+	float const* data[2];
+	for (uint32_t c = 0; c < 2; ++c) {
+		data[c] = ports->nth_audio_port (std::min (c, n - 1))->get_audio_buffer (nframes).data ();
+	}
+	_master_lufs->run (data, nframes);
 }

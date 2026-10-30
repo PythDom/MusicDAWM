@@ -149,6 +149,7 @@ class CoreSelection;
 class ExportHandler;
 class ExportStatus;
 class Graph;
+class LUFSMeter;
 struct GraphChain;
 class IO;
 class IOPlug;
@@ -1077,6 +1078,19 @@ public:
 
 	std::shared_ptr<Route> monitor_out() const { return _monitor_out; }
 	std::shared_ptr<Route> master_out() const { return _master_out; }
+
+	/* MusicDAWM (Final Mix): loudness of what the master bus plays, measured
+	 * while the transport rolls; a new run of the transport starts a new
+	 * measurement. Values <= -200 mean "no data". */
+	struct MasterLoudness {
+		float momentary;  /* LUFS, last 400 ms */
+		float integrated; /* LUFS, since the measurement started */
+		float true_peak;  /* dBTP, highest since the measurement started */
+	};
+	void           set_master_loudness_metering (bool);
+	bool           master_loudness_metering () const { return _master_lufs_on.load (); }
+	void           reset_master_loudness () { _master_lufs_reset.store (true); }
+	MasterLoudness master_loudness () const;
 	std::shared_ptr<GainControl>  master_volume () const;
 	std::shared_ptr<Route> surround_master() const { return _surround_master; }
 
@@ -2272,6 +2286,11 @@ private:
 	uint32_t main_outs;
 
 	std::shared_ptr<Route> _master_out;
+	std::unique_ptr<LUFSMeter> _master_lufs;
+	std::atomic<bool>          _master_lufs_on { false };
+	std::atomic<bool>          _master_lufs_reset { false };
+	bool                       _master_lufs_rolling { false };
+	void                       run_master_loudness (pframes_t);
 	std::shared_ptr<Route> _monitor_out;
 	std::shared_ptr<Route> _surround_master;
 

@@ -84,6 +84,7 @@
 #include "ardour/graph.h"
 #include "ardour/io_plug.h"
 #include "ardour/io_tasklist.h"
+#include "ardour/lufs_meter.h"
 #include "ardour/luabindings.h"
 #include "ardour/lv2_plugin.h"
 #include "ardour/midiport_manager.h"
