@@ -4,6 +4,8 @@
  * M1: the bundled x42 plug-ins (limiter, EQ with high-pass) load and do
  * their job, and freezing a track with a plug-in works and can be undone.
  * M2: the master bus loudness meter (LUFS, true peak) while playing.
+ * M3: the Final Mix model: roles, per-track tools, FX on/off, removing a
+ * track from the mix (undoable), the master limiter.
  *
  * The x42 bundles must be on the LV2 path (LV2_PATH, or the program's own
  * LV2 folder in the Windows bundle).
@@ -27,11 +29,15 @@
 
 #include "pbd/compose.h"
 
+#include "ardour/amp.h"
 #include "ardour/audio_track.h"
 #include "ardour/audioregion.h"
 #include "ardour/audiosource.h"
 #include "ardour/automation_control.h"
 #include "ardour/dB.h"
+#include "ardour/final_mix.h"
+#include "ardour/internal_send.h"
+#include "ardour/mute_control.h"
 #include "ardour/interthread_info.h"
 #include "ardour/lv2_plugin.h"
 #include "ardour/playlist.h"
@@ -286,6 +292,95 @@ main (int argc, char* argv[])
 	printf ("   6 dB quieter: integrated %.2f LUFS\n", l2.integrated);
 	check (fabs (l2.integrated - (expect - 6)) < 0.5, "loudness: a new playback run measures afresh");
 	s->set_master_loudness_metering (false);
+
+	/* ---- M3: the Final Mix model ---- */
+	check (FinalMix::guess_role ("Kick In") == FinalMix::Drums && FinalMix::guess_role ("Bass DI") == FinalMix::Bass
+	       && FinalMix::guess_role ("Lead Guitar") == FinalMix::Guitars && FinalMix::guess_role ("Lead Vox") == FinalMix::Vocals
+	       && FinalMix::guess_role ("BV Choir") == FinalMix::BackingVocals && FinalMix::guess_role ("Piano") == FinalMix::Keys
+	       && FinalMix::guess_role ("TRACK07") == FinalMix::Other,
+	       "roles are guessed from track names");
+
+	FinalMix fm (*s);
+	check (fm.tracks ().size () == 4, string_compose ("the window lists the 4 tracks (%1)", fm.tracks ().size ()));
+	FinalMix::Settings st = fm.settings (tt);
+	check (st.neutral () && st.role == FinalMix::Other, "a new track has neutral settings");
+	st.high_pass     = true;
+	st.hp_freq       = 120;
+	st.brightness_db = 3;
+	st.punch         = 0.5;
+	st.space         = 0.5;
+	fm.set_settings (tt, st);
+
+	vector<string> names;
+	size_t         fader_pos = 0;
+	tt->foreach_processor ([&names, &fader_pos, &tt] (std::weak_ptr<Processor> w) {
+		if (auto p = w.lock ()) {
+			if (p == tt->amp ()) {
+				fader_pos = names.size ();
+			}
+			names.push_back (p->name ());
+		}
+	});
+	string chain;
+	for (auto const& n : names) {
+		chain += n + " | ";
+	}
+	printf ("   chain: %s\n", chain.c_str ());
+	auto pos = [&names] (string const& n) { return std::find (names.begin (), names.end (), n) - names.begin (); };
+	check (pos (FinalMix::eq_name) < pos (FinalMix::punch_name) && pos (FinalMix::punch_name) < (long)fader_pos,
+	       "EQ, then Punch, both before the fader");
+	std::shared_ptr<Route> bus = fm.space_bus ();
+	std::shared_ptr<Send>  snd = bus ? tt->internal_send_for (bus) : std::shared_ptr<Send> ();
+	check (bus && snd && snd->active () && fabs (accurate_coefficient_to_dB (snd->gain_control ()->get_value ()) + 12) < 0.1,
+	       "Space: a send at -12 dB to the reverb bus");
+	FinalMix::Settings back = fm.settings (tt);
+	check (back.high_pass && back.hp_freq == 120 && back.brightness_db == 3 && back.punch == 0.5f && back.space == 0.5f, "settings read back");
+
+	fm.set_fx_enabled (false);
+	bool all_off = !snd->active ();
+	tt->foreach_processor ([&all_off] (std::weak_ptr<Processor> w) {
+		auto p = w.lock ();
+		if (p && (p->name () == FinalMix::eq_name || p->name () == FinalMix::punch_name)) {
+			all_off &= !p->active ();
+		}
+	});
+	check (all_off && !fm.fx_enabled (), "FX off: the tools are bypassed");
+	fm.set_fx_enabled (true);
+	check (snd->active (), "FX on again");
+
+	fm.reset (tt);
+	check (fm.settings (tt).neutral () && !snd->active () && tt->gain_control ()->get_value () == GAIN_COEFF_UNITY, "reset: neutral, fader at 0 dB");
+
+	/* removing a track from the mix mutes it; undo and redo */
+	/* mute changes reach the route in the next process cycle */
+	auto settle = [] () { Glib::usleep (200000); };
+	std::shared_ptr<Route> loud_r = s->route_by_name ("Loud");
+	loud_r->mute_control ()->set_value (0, PBD::Controllable::NoGroup);
+	settle ();
+	fm.set_excluded (loud_r, true);
+	settle ();
+	check (fm.excluded (loud_r) && loud_r->mute_control ()->muted_by_self (), "removed from the mix: excluded and muted");
+	s->undo (1);
+	settle ();
+	check (!fm.excluded (loud_r) && !loud_r->mute_control ()->muted_by_self (), "undo: back in the mix, unmuted");
+	s->redo (1);
+	settle ();
+	check (fm.excluded (loud_r) && loud_r->mute_control ()->muted_by_self (), "redo: removed again");
+	fm.set_excluded (loud_r, false);
+	settle ();
+	check (!fm.excluded (loud_r) && !loud_r->mute_control ()->muted_by_self (), "brought back: its earlier mute state returns");
+
+	/* the master limiter */
+	fm.set_limiter_ceiling (-1.5);
+	std::shared_ptr<Processor> last_plugin;
+	s->master_out ()->foreach_processor ([&last_plugin] (std::weak_ptr<Processor> w) {
+		if (auto p = std::dynamic_pointer_cast<PluginInsert> (w.lock ())) {
+			last_plugin = p;
+		}
+	});
+	check (last_plugin && last_plugin->name () == FinalMix::limiter_name && fabs (fm.limiter_ceiling () + 1.5) < 0.01, "master limiter made, ceiling -1.5 dBTP");
+	fm.set_target (FinalMix::Loud);
+	check (fm.target_lufs () == -9, "loudness target: Loud is -9 LUFS");
 
 	s->save_state ("");
 	printf ("%s: %d failure(s)\n", failures ? "FAILED" : "PASSED", failures);

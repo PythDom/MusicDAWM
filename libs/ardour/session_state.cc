@@ -108,6 +108,7 @@
 #include "ardour/directory_names.h"
 #include "ardour/disk_reader.h"
 #include "ardour/filename_extensions.h"
+#include "ardour/final_mix.h"
 #include "ardour/filesystem_paths.h"
 #include "ardour/graph.h"
 #include "ardour/io_plug.h"
@@ -4923,6 +4924,8 @@ Session::restore_history (string snapshot_name)
 					if ((c = stateful_diff_command_factory (n))) {
 						ut->add_command (c);
 					}
+				} else if (n->name() == "FinalMixExcludeCommand") {
+					ut->add_command (new FinalMix::ExcludeCommand (*this, *n));
 				} else {
 					error << string_compose(_("Couldn't figure out how to make a Command out of a %1 XMLNode."), n->name()) << endmsg;
 				}
