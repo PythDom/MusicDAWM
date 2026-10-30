@@ -156,6 +156,11 @@ Mixer_UI::Mixer_UI ()
 	, _strip_selection_change_without_scroll (false)
 	, _selection (*this, *this)
 {
+	/* MusicDAWM: settings saved before the Freeze button existed do not list it */
+	if (UIConfiguration::instance().get_musicdawm_ui_version () < 1) {
+		UIConfiguration::instance().set_mixer_strip_visibility (VisibilityGroup::add_element (UIConfiguration::instance().get_mixer_strip_visibility(), X_("Freeze")));
+		UIConfiguration::instance().set_musicdawm_ui_version (1);
+	}
 
 	load_bindings ();
 	register_actions ();

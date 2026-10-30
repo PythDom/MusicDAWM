@@ -122,6 +122,11 @@ jobs:
           T=$(cygpath -u "$RUNNER_TEMP")
           export PATH="$PWD/stage/bin:/usr/bin:/c/Windows/System32:/c/Windows"
           stage/bin/musicdawm9-tap_tempo_test.exe "$(cygpath -m "$T/taps")"
+      - name: Final Mix test (bundle only, with the bundled x42 plug-ins)
+        run: |
+          T=$(cygpath -u "$RUNNER_TEMP")
+          export PATH="$PWD/stage/bin:/usr/bin:/c/Windows/System32:/c/Windows"
+          stage/bin/musicdawm9-final_mix_test.exe "$(cygpath -m "$T/finalmix")"
       - name: Waveform import test (bundle only)
         run: |
           T=$(cygpath -u "$RUNNER_TEMP"); W="$T/waveform"
@@ -167,6 +172,7 @@ jobs:
             build/config.log
             build.log
             avldrums.log
+            x42.log
           if-no-files-found: ignore
 
   release:

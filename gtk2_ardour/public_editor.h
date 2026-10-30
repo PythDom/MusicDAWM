@@ -143,6 +143,9 @@ public:
 	virtual void set_session (ARDOUR::Session* s) = 0;
 	/* MusicDAWM: show the Drum Studio page of the sidebar */
 	virtual void show_drum_studio () = 0;
+	/* MusicDAWM WP7: one-click freeze, with the editor's checks and progress */
+	virtual void freeze_track (std::shared_ptr<ARDOUR::Track>) = 0;
+	virtual void unfreeze_track (std::shared_ptr<ARDOUR::Track>) = 0;
 
 	virtual samplepos_t playhead_cursor_sample () const = 0;
 

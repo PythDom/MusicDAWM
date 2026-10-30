@@ -5,7 +5,7 @@ This guide covers only what is **specific to MusicDAWM**. Everything that works 
 
 *Status: 2026-10-24, MusicDAWM 0.1.0 (work packages WP1, WP3, WP5, WP6, WP9).*
 
-> **What exists today.** MusicDAWM is Ardour 9.8 under its own name (§4), packaged as a portable Windows folder, with Drum Studio (§6), DAWproject import (§7), Waveform and Cubase migration (§8), Melodyne through ARA (§9, on hold: see there) and the Tap Tempo Map (§10). §11 lists what is still to come.
+> **What exists today.** MusicDAWM is Ardour 9.8 under its own name (§4), packaged as a portable Windows folder, with Drum Studio (§6), DAWproject import (§7), Waveform and Cubase migration (§8), Melodyne through ARA (§9, on hold: see there) the Tap Tempo Map (§10) and the first mixing tools (§11). §12 lists what is still to come.
 
 ## 1. Getting the program
 
@@ -204,14 +204,28 @@ What changes and what does not:
 
 Good to know: tap times are taken from what you hear (the playback latency is compensated), so tapping is as accurate as your timing; with **Snap** it is as accurate as the hits on the chosen track.
 
-## 11. Coming next
+## 11. Mixing: Freeze and the bundled limiter and EQ
+
+This section grows with the Final Mix window (WP7); for now it covers the parts that are already in.
+
+**Freeze a track.** Plug-ins such as Melodyne, amp simulators or big reverbs can make the computer struggle. In the **Mixer**, click **Freeze** at the bottom of the track's strip: the track is rendered once with its plug-ins and then plays the rendered copy, using almost no processing power. The button then reads **Frozen**. Click it again to **unfreeze**: the original recording and plug-ins come back, unchanged. While a track is frozen its plug-ins and regions cannot be edited.
+- The button is shown on audio tracks only. It can be hidden in **Edit > Preferences > Appearance > Mixer** (Mixer Strip), like Ardour's other strip elements.
+- Freezing renders the whole song (the session range, from the start to the end marker).
+
+**Bundled plug-ins.** Two free plug-ins by Robin Gareus come with MusicDAWM, ready in the plug-in list:
+- **x42-dpl Digital Peak Limiter** (mono and stereo): keeps the loudest peaks under a ceiling, for example −1 dB, so the song can be made louder without clipping. Put it last on the master bus.
+- **x42-fil4 Parametric Equalizer** (mono and stereo): a high-pass filter (removes rumble below, for example, 80–120 Hz), shelves and four bands.
+
+They appear with MusicDAWM's generic controls (sliders), not their own graphic windows.
+
+## 12. Coming next
 
 None of these are available yet. Each work package adds its section to this guide when it ships.
 
 | Feature | What it will do for you | Work package |
 |---|---|---|
 | Songwriter layout and start screen | Recording controls hidden; "New song from WAV files" imports your Zoom R8 tracks aligned in one step | WP2 |
-| Limiter and one-click freeze | A master limiter; freeze a track's plugins with one click and unfreeze later | WP7 |
+| Final Mix window | Tracks side by side with pan, level, a few simple effects, a "Starting mix" per genre, Before/After listening, loudness target and one-click export to WAV and MP3 | WP7 |
 | CLAP plugins | Load CLAP plugins such as Surge XT | WP8 |
 
 ## Appendix: command-line tools in `bin`

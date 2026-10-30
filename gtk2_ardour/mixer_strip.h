@@ -235,6 +235,9 @@ private:
 
 	ArdourWidgets::ArdourButton name_button;
 	ArdourWidgets::ArdourButton _comment_button;
+	ArdourWidgets::ArdourButton _freeze_button; /* MusicDAWM WP7 */
+	void freeze_button_clicked ();
+	std::optional<bool> override_freeze_visibility () const;
 	ArdourWidgets::ArdourKnob   trim_control;
 
 	Gtk::Menu* _master_volume_menu;

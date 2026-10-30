@@ -3939,6 +3939,30 @@ Editor::trim_to_region(bool forward)
 	}
 }
 
+/* MusicDAWM WP7: the freeze/unfreeze of the track's context menu, for a
+ * given track (one-click Freeze button) */
+void
+Editor::freeze_track (std::shared_ptr<Track> t)
+{
+	RouteTimeAxisView* rtv = t ? dynamic_cast<RouteTimeAxisView*> (time_axis_view_from_stripable (t)) : 0;
+	if (!rtv) {
+		return;
+	}
+	clicked_routeview = rtv;
+	freeze_route ();
+}
+
+void
+Editor::unfreeze_track (std::shared_ptr<Track> t)
+{
+	RouteTimeAxisView* rtv = t ? dynamic_cast<RouteTimeAxisView*> (time_axis_view_from_stripable (t)) : 0;
+	if (!rtv) {
+		return;
+	}
+	clicked_routeview = rtv;
+	unfreeze_route ();
+}
+
 void
 Editor::unfreeze_route ()
 {

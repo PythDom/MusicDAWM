@@ -2978,6 +2978,7 @@ RCOptionEditor::RCOptionEditor ()
 	_mixer_strip_visibility.add (0, X_("RecMon"), _("Record & Monitor"));
 	_mixer_strip_visibility.add (0, X_("SoloIsoLock"), _("Solo Iso / Lock"));
 	_mixer_strip_visibility.add (0, X_("Output"), _("Output"));
+	_mixer_strip_visibility.add (0, X_("Freeze"), _("Freeze"));
 	_mixer_strip_visibility.add (0, X_("Comments"), _("Comments"));
 	_mixer_strip_visibility.add (0, X_("VCA"), _("VCA Assigns"));
 	_mixer_strip_visibility.add (0, X_("TriggerGrid"), _("Trigger Grid"));

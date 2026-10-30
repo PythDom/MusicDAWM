@@ -128,6 +128,7 @@ MixerStrip::MixerStrip (Mixer_UI& mx, Session* sess, bool in_mixer)
 	, monitor_section_button (0)
 	, _tmaster_widget (-1, 16)
 	, _comment_button (_("Comments"))
+	, _freeze_button (_("Freeze"))
 	, trim_control (ArdourKnob::default_elements, ArdourKnob::Flags (ArdourKnob::Detent | ArdourKnob::ArcToZero))
 	, _master_volume_menu (0)
 	, _loudess_analysis_button (0)
@@ -165,6 +166,7 @@ MixerStrip::MixerStrip (Mixer_UI& mx, Session* sess, std::shared_ptr<Route> rt, 
 	, monitor_section_button (0)
 	, _tmaster_widget (-1, 16)
 	, _comment_button (_("Comments"))
+	, _freeze_button (_("Freeze"))
 	, trim_control (ArdourKnob::default_elements, ArdourKnob::Flags (ArdourKnob::Detent | ArdourKnob::ArcToZero))
 	, _master_volume_menu (0)
 	, _loudess_analysis_button (0)
@@ -301,6 +303,10 @@ MixerStrip::init ()
 	_comment_button.signal_clicked.connect (sigc::mem_fun (*this, &RouteUI::toggle_comment_editor));
 	_comment_button.signal_size_allocate().connect (sigc::mem_fun (*this, &MixerStrip::comment_button_resized));
 
+	_freeze_button.set_name (X_("mixer strip button"));
+	set_tooltip (_freeze_button, _("Freeze: render this track with its plugins to audio, to save processing power. Click again to unfreeze and edit."));
+	_freeze_button.signal_clicked.connect (sigc::mem_fun (*this, &MixerStrip::freeze_button_clicked));
+
 	trim_control.set_size_request (PX_SCALE(19), PX_SCALE(19));
 	trim_control.set_tooltip_prefix (_("Trim: "));
 	trim_control.set_name ("trim knob");
@@ -347,6 +353,7 @@ MixerStrip::init ()
 	global_vpacker.pack_start (control_slave_ui, Gtk::PACK_SHRINK);
 	global_vpacker.pack_start (bottom_button_table, Gtk::PACK_SHRINK);
 	global_vpacker.pack_start (output_button, Gtk::PACK_SHRINK);
+	global_vpacker.pack_start (_freeze_button, Gtk::PACK_SHRINK);
 	global_vpacker.pack_start (_comment_button, Gtk::PACK_SHRINK);
 
 	midi_input_enable_button.set_size_request (PX_SCALE(19), PX_SCALE(19));
@@ -411,6 +418,7 @@ MixerStrip::init ()
 	_visibility.add (&solo_iso_table, X_("SoloIsoLock"), _("Solo Iso / Lock"), false);
 	_visibility.add (&output_button, X_("Output"), _("Output"), false);
 	_visibility.add (&_comment_button, X_("Comments"), _("Comments"), false);
+	_visibility.add (&_freeze_button, X_("Freeze"), _("Freeze"), false, std::bind (&MixerStrip::override_freeze_visibility, this));
 	_visibility.add (&control_slave_ui, X_("VCA"), _("VCA Assigns"), false);
 	_visibility.add (&_tmaster_widget, X_("TriggerMaster"), _("Trigger Master"), false);
 
@@ -1454,10 +1462,37 @@ MixerStrip::map_frozen ()
 			processor_box.set_sensitive (en);
 			break;
 		}
+		_freeze_button.set_active (at->freeze_state () == AudioTrack::Frozen);
+		_freeze_button.set_text (at->freeze_state () == AudioTrack::Frozen ? _("Frozen") : _("Freeze"));
 	} else {
 		processor_box.set_sensitive (en);
 	}
 	RouteUI::map_frozen ();
+}
+
+/* MusicDAWM WP7: one-click freeze (audio tracks) */
+void
+MixerStrip::freeze_button_clicked ()
+{
+	std::shared_ptr<AudioTrack> at = audio_track ();
+	if (!at) {
+		return;
+	}
+	if (at->freeze_state () == AudioTrack::Frozen) {
+		PublicEditor::instance ().unfreeze_track (at);
+	} else {
+		PublicEditor::instance ().freeze_track (at);
+	}
+}
+
+std::optional<bool>
+MixerStrip::override_freeze_visibility () const
+{
+	/* only audio tracks can be frozen */
+	if (!is_audio_track ()) {
+		return false;
+	}
+	return std::optional<bool> ();
 }
 
 void

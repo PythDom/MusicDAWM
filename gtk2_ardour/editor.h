@@ -171,6 +171,8 @@ public:
 	/* MusicDAWM: show the Drum Studio page of the sidebar */
 	void show_drum_studio ();
 	void show_tap_tempo_window (); /* MusicDAWM WP4 */
+	void freeze_track (std::shared_ptr<ARDOUR::Track>);   /* MusicDAWM WP7 */
+	void unfreeze_track (std::shared_ptr<ARDOUR::Track>);
 
 	Gtk::Window* use_own_window (bool and_fill_it);
 

@@ -74,3 +74,5 @@ python3 ./waf install > install.log 2>&1 || { tail -n 40 install.log; exit 1; }
 # The Drum Studio's default kits, next to Ardour's own bundled LV2 plugins.
 bash ci/avldrums-build.sh "$STAGE/lib/ardour9/LV2" > avldrums.log 2>&1 || { tail -n 40 avldrums.log; exit 1; }
 tail -n 12 avldrums.log
+bash ci/x42-mix-plugins-build.sh "$STAGE/lib/ardour9/LV2" > x42.log 2>&1 || { tail -n 40 x42.log; exit 1; }
+tail -n 12 x42.log
