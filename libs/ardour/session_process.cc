@@ -1953,5 +1953,15 @@ Session::run_master_loudness (pframes_t nframes)
 	for (uint32_t c = 0; c < 2; ++c) {
 		data[c] = ports->nth_audio_port (std::min (c, n - 1))->get_audio_buffer (nframes).data ();
 	}
+	/* on Windows, the first cycle of a run can carry uninitialised samples
+	 * (seen as ~1e26 in CI); one of them spoils the whole measurement. No
+	 * real mix goes above +60 dBFS. */
+	for (uint32_t c = 0; c < 2; ++c) {
+		for (pframes_t i = 0; i < nframes; ++i) {
+			if (!(fabsf (data[c][i]) < 1000.f)) {
+				return;
+			}
+		}
+	}
 	_master_lufs->run (data, nframes);
 }
