@@ -27,6 +27,8 @@
 #include <iostream>
 #include <unistd.h>
 
+#include <sndfile.h>
+
 #include <glibmm/timer.h>
 
 #include <glibmm/fileutils.h>
@@ -503,8 +505,50 @@ main (int argc, char* argv[])
 	fm.set_limiter_ceiling (-1);
 	string const out_dir = Glib::build_filename (dir, "final");
 	g_mkdir_with_parents (out_dir.c_str (), 0755);
+	/* diagnostics (a Windows-only failure was seen here): the raw mix,
+	 * then two finalised files, sample by sample */
+	auto wav_stats = [] (string const& path) {
+		SF_INFO info;
+		memset (&info, 0, sizeof (info));
+		SNDFILE* sf = sf_open (path.c_str (), SFM_READ, &info);
+		if (!sf) {
+			printf ("   %s: cannot open\n", path.c_str ());
+			return;
+		}
+		vector<float> x (info.frames * info.channels);
+		sf_readf_float (sf, x.data (), info.frames);
+		sf_close (sf);
+		long          nclip = 0, nnan = 0, first = -1;
+		vector<float> peak_s ((info.frames / info.samplerate) + 1, 0.f);
+		for (size_t i = 0; i < x.size (); ++i) {
+			float const v = x[i];
+			if (!std::isfinite (v)) {
+				++nnan;
+			}
+			if (fabsf (v) >= 0.999f) {
+				++nclip;
+				if (first < 0) {
+					first = i / info.channels;
+				}
+			}
+			float& p = peak_s[(i / info.channels) / info.samplerate];
+			p        = std::max (p, fabsf (v));
+		}
+		printf ("   %s: %ld frames, %d ch, %ld clipped (first at frame %ld), %ld not finite; peak per second:", Glib::path_get_basename (path).c_str (),
+		        (long)info.frames, info.channels, nclip, first, nnan);
+		for (float p : peak_s) {
+			printf (" %.1f", 20 * log10 (p + 1e-9));
+		}
+		printf ("\n");
+	};
+	FinalMix::Analysis const pre = fm.analyse_mix (idle);
+	printf ("   raw mix before finalising: %.2f LUFS, %.2f dBTP\n", pre.lufs, pre.true_peak);
 	FinalMix::Finalised const fin = fm.finalise (out_dir, "Song", false, idle);
 	printf ("   finalised: %s, %.2f LUFS, %.2f dBTP %s\n", fin.wav.c_str (), fin.lufs, fin.true_peak, fin.error.c_str ());
+	wav_stats (fin.wav);
+	FinalMix::Finalised const fin2 = fm.finalise (out_dir, "Song2", false, idle);
+	printf ("   finalised again: %.2f LUFS, %.2f dBTP\n", fin2.lufs, fin2.true_peak);
+	wav_stats (fin2.wav);
 	check (fin.ok && Glib::file_test (fin.wav, Glib::FILE_TEST_EXISTS) && fabs (fin.lufs + 14) < 0.7 && fin.true_peak <= -0.7,
 	       "Finalise Mix: a WAV at -14 LUFS, true peaks under -1 dBTP");
 
