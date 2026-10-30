@@ -36,6 +36,7 @@
 #include "final_mix_window.h"
 #include "gui_thread.h"
 #include "level_meter.h"
+#include "mouse_cursors.h"
 #include "public_editor.h"
 #include "timers.h"
 #include "ui_config.h"
@@ -334,6 +335,8 @@ FinalMixWindow::FinalMixWindow (PublicEditor& e)
 	, _fx_on (_("FX ON"), ArdourButton::default_elements, true)
 	, _reset_all (_("Reset settings"))
 	, _classic (_("Open classic mixer"))
+	, _starting_mix (_("Starting mix"))
+	, _randomise (_("Randomise FX"))
 	, _to_start (X_("⏮"))
 	, _play (X_("▶"))
 	, _add_tracks (_("+ Tracks"))
@@ -346,9 +349,18 @@ FinalMixWindow::FinalMixWindow (PublicEditor& e)
 	HBox* top = manage (new HBox (false, 6));
 	top->pack_start (_fx_on, false, false);
 	top->pack_start (_reset_all, false, false);
+	top->pack_start (*manage (new Label (_("Genre:"))), false, false, 6);
+	for (int g = 0; g < FinalMix::NumGenres; ++g) {
+		_genre.append_text (FinalMix::genre_name ((FinalMix::Genre)g));
+	}
+	_genre.set_active (0);
+	top->pack_start (_genre, false, false);
+	top->pack_start (_starting_mix, false, false);
+	set_tooltip (_starting_mix, _("Set a first balance, pan and effects for the chosen genre, from each track's role and loudness. Edit > Undo goes back."));
+	set_tooltip (_randomise, _("Try other effect amounts around the genre's (the faders and pans stay). Edit > Undo goes back."));
 	top->pack_end (_classic, false, false);
 	set_tooltip (_fx_on, _("Switch all Final Mix effects off to hear the tracks without them (the settings are kept)."));
-	set_tooltip (_reset_all, _("Reset every track: no effects, faders at 0 dB, pan centre."));
+	set_tooltip (_reset_all, _("Reset every track: no effects, faders at 0 dB, pan centre. Edit > Undo goes back."));
 
 	/* transport */
 	HBox* transport = manage (new HBox (false, 6));
@@ -412,6 +424,7 @@ FinalMixWindow::FinalMixWindow (PublicEditor& e)
 	cols->pack_start (_empty, true, true);
 	HBox* bottom = manage (new HBox (false, 6));
 	bottom->pack_start (_add_tracks, false, false);
+	bottom->pack_start (_randomise, false, false);
 	cols->pack_start (*bottom, false, false);
 	middle->pack_start (*cols, true, true);
 	middle->pack_start (*master_frame, false, false);
@@ -427,6 +440,8 @@ FinalMixWindow::FinalMixWindow (PublicEditor& e)
 
 	_fx_on.signal_clicked.connect (sigc::mem_fun (*this, &FinalMixWindow::fx_on_clicked));
 	_reset_all.signal_clicked.connect (sigc::mem_fun (*this, &FinalMixWindow::reset_all_clicked));
+	_starting_mix.signal_clicked.connect (sigc::mem_fun (*this, &FinalMixWindow::starting_mix_clicked));
+	_randomise.signal_clicked.connect (sigc::mem_fun (*this, &FinalMixWindow::randomise_clicked));
 	_classic.signal_clicked.connect ([] () {
 		if (Glib::RefPtr<Gtk::Action> a = ActionManager::get_action (X_("Common"), X_("show-mixer"))) {
 			a->activate ();
@@ -443,6 +458,7 @@ FinalMixWindow::FinalMixWindow (PublicEditor& e)
 	});
 
 	FinalMix::ExclusionChanged.connect (_exclusion_connection, invalidator (*this), std::bind (&FinalMixWindow::queue_rebuild, this), gui_context ());
+	FinalMix::SettingsChanged.connect (_settings_connection, invalidator (*this), std::bind (&FinalMixWindow::settings_changed, this), gui_context ());
 
 	show_all_children ();
 }
@@ -647,6 +663,7 @@ FinalMixWindow::sync_master ()
 	}
 	_ignore_changes = true;
 	_fx_on.set_active (_model->fx_enabled ());
+	_genre.set_active ((int)_model->genre ());
 	_target.set_active ((int)_model->target ());
 	_custom.set_value (_model->target () == FinalMix::Custom ? _model->target_lufs () : -14);
 	_custom.set_visible (_model->target () == FinalMix::Custom);
@@ -670,17 +687,36 @@ FinalMixWindow::reset_all_clicked ()
 	if (!_model) {
 		return;
 	}
-	ArdourMessageDialog msg (*this, _("Reset every track of the final mix?"), false, MESSAGE_QUESTION, BUTTONS_OK_CANCEL);
-	msg.set_secondary_text (_("All Final Mix effects are switched off, the faders go to 0 dB and the pan to the centre. Tracks removed from the mix stay removed."));
-	if (msg.run () != RESPONSE_OK) {
+	_model->reset_all ();
+}
+
+void
+FinalMixWindow::starting_mix_clicked ()
+{
+	if (!_model) {
 		return;
 	}
-	for (auto const& r : _model->tracks ()) {
-		if (!_model->excluded (r)) {
-			_model->reset (r);
-			reload_fx (r);
-		}
+	PublicEditor::CursorRAII cr (_editor, _editor.cursors ()->wait);
+	gdk_flush ();
+	_model->starting_mix ((FinalMix::Genre)std::max (0, _genre.get_active_row_number ()));
+}
+
+void
+FinalMixWindow::randomise_clicked ()
+{
+	if (_model) {
+		_model->randomise (g_random_int ());
 	}
+}
+
+void
+FinalMixWindow::settings_changed ()
+{
+	for (auto& i : _fx_windows) {
+		i.second->load ();
+	}
+	/* roles may have changed (undo) */
+	queue_rebuild ();
 }
 
 void

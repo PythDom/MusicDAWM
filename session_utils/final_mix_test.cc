@@ -6,6 +6,8 @@
  * M2: the master bus loudness meter (LUFS, true peak) while playing.
  * M3: the Final Mix model: roles, per-track tools, FX on/off, removing a
  * track from the mix (undoable), the master limiter.
+ * M4: Starting mix (balance from measured loudness, pan, effects per genre
+ * and role), Randomise FX, both undoable.
  *
  * The x42 bundles must be on the LV2 path (LV2_PATH, or the program's own
  * LV2 folder in the Windows bundle).
@@ -381,6 +383,52 @@ main (int argc, char* argv[])
 	check (last_plugin && last_plugin->name () == FinalMix::limiter_name && fabs (fm.limiter_ceiling () + 1.5) < 0.01, "master limiter made, ceiling -1.5 dBTP");
 	fm.set_target (FinalMix::Loud);
 	check (fm.target_lufs () == -9, "loudness target: Loud is -9 LUFS");
+
+	/* ---- M4: Starting mix ---- */
+	for (auto const& r : fm.tracks ()) {
+		fm.set_excluded (r, true);
+	}
+	std::shared_ptr<AudioTrack> vox, bass, gl, gr, kick;
+	auto tone_at = [&dir] (string const& name, double amp) {
+		return write_wav (dir, name, 4, [amp] (double t) { return float (amp * sin (2 * M_PI * 1000 * t)); });
+	};
+	add_track (*s, "Lead Vox", tone_at ("vox", 0.3), &vox);
+	add_track (*s, "Bass DI", tone_at ("bass", 0.05), &bass);
+	add_track (*s, "Guitar L", tone_at ("gl", 0.2), &gl);
+	add_track (*s, "Guitar R", tone_at ("gr", 0.2), &gr);
+	add_track (*s, "Kick", tone_at ("kick", 0.5), &kick);
+	float const lv = fm.track_loudness (vox);
+	printf ("   Lead Vox (sine 0.3 peak, mono) measures %.2f LUFS\n", lv);
+	check (fabs (lv - 20 * log10 (0.3) + 3.01) < 0.3, "track loudness: as it will sound centred in the mix");
+
+	FinalMix::Snapshot const before_sm = fm.snapshot ();
+	int const n_set = fm.starting_mix (FinalMix::Rock);
+	auto in_mix = [&fm] (std::shared_ptr<Route> r) { return fm.track_loudness (r) + accurate_coefficient_to_dB (r->gain_control ()->get_value ()); };
+	printf ("   Rock: vox %.1f, kick %.1f, bass %.1f, guitar L %.1f LUFS in the mix\n", in_mix (vox), in_mix (kick), in_mix (bass), in_mix (gl));
+	check (n_set == 5, "starting mix sets the 5 tracks in the mix");
+	check (fabs (in_mix (vox) + 22) < 0.3 && fabs (in_mix (kick) + 24) < 0.3 && fabs (in_mix (bass) + 26) < 0.3
+	       && fabs (in_mix (gl) - (-26 - 10 * log10 (2.))) < 0.3,
+	       "balance: vocal -22, drums -2, bass -4, two guitars sharing -4 dB (Rock)");
+	check (gl->pan_azimuth_control ()->get_value () < 0.2 && gr->pan_azimuth_control ()->get_value () > 0.8
+	       && fabs (vox->pan_azimuth_control ()->get_value () - 0.5) < 0.01 && fabs (bass->pan_azimuth_control ()->get_value () - 0.5) < 0.01,
+	       "pan: guitars L and R by name, vocal and bass centred");
+	FinalMix::Settings const sv = fm.settings (vox);
+	check (sv.high_pass && sv.hp_freq == 100 && sv.punch == 0.5f && sv.brightness_db == 1.5f && sv.space > 0, "effects: vocal high-pass 100 Hz, punch, brightness, space");
+
+	float const g_vox = vox->gain_control ()->get_value ();
+	s->undo (1);
+	check (vox->gain_control ()->get_value () == before_sm[0].gain || fabs (accurate_coefficient_to_dB (vox->gain_control ()->get_value ())) < 0.01, "undo: the faders come back");
+	check (fm.settings (vox).neutral (), "undo: the effects come back");
+	s->redo (1);
+	check (fabs (vox->gain_control ()->get_value () - g_vox) < 1e-6, "redo: the starting mix again");
+
+	fm.randomise (7);
+	FinalMix::Settings const r1 = fm.settings (vox);
+	check (!(r1.hp_freq == sv.hp_freq && r1.punch == sv.punch && r1.brightness_db == sv.brightness_db)
+	       && fabs (vox->gain_control ()->get_value () - g_vox) < 1e-6,
+	       "randomise: new effect amounts, the faders stay");
+	s->undo (1);
+	check (fm.settings (vox).punch == sv.punch, "randomise: undo");
 
 	s->save_state ("");
 	printf ("%s: %d failure(s)\n", failures ? "FAILED" : "PASSED", failures);

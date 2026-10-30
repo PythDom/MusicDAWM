@@ -4926,6 +4926,8 @@ Session::restore_history (string snapshot_name)
 					}
 				} else if (n->name() == "FinalMixExcludeCommand") {
 					ut->add_command (new FinalMix::ExcludeCommand (*this, *n));
+				} else if (n->name() == "FinalMixSnapshotCommand") {
+					ut->add_command (new FinalMix::SnapshotCommand (*this, *n));
 				} else {
 					error << string_compose(_("Couldn't figure out how to make a Command out of a %1 XMLNode."), n->name()) << endmsg;
 				}

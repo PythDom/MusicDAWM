@@ -65,6 +65,9 @@ private:
 	ArdourWidgets::ArdourButton _fx_on;
 	ArdourWidgets::ArdourButton _reset_all;
 	ArdourWidgets::ArdourButton _classic;
+	Gtk::ComboBoxText           _genre;
+	ArdourWidgets::ArdourButton _starting_mix;
+	ArdourWidgets::ArdourButton _randomise;
 	/* transport */
 	ArdourWidgets::ArdourButton _to_start;
 	ArdourWidgets::ArdourButton _play;
@@ -95,9 +98,13 @@ private:
 	sigc::connection          _slow_timer;
 	PBD::ScopedConnectionList _session_connections;
 	PBD::ScopedConnection     _exclusion_connection;
+	PBD::ScopedConnection     _settings_connection;
 
 	void fx_on_clicked ();
 	void reset_all_clicked ();
+	void starting_mix_clicked ();
+	void randomise_clicked ();
+	void settings_changed ();
 	void add_tracks_clicked ();
 	void target_changed ();
 	void ceiling_changed ();

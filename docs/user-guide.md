@@ -225,6 +225,15 @@ Each column, from top to bottom:
 
 At the top: **FX ON** switches all these effects off and on, to compare (the settings are kept); **Reset settings** resets every track; **Open classic mixer** shows the full mixer. Below, ⏮ and ▶/■ move to the start and play or stop (Space works too).
 
+**Starting mix.** Choose the **Genre** (Pop, Rock, Acoustic / Folk, Electronic, Hip-hop, Metal, Jazz) and click **Starting mix**. MusicDAWM measures how loud each track's recording is and sets:
+- the **faders**, so that each role sits at a level typical of the genre, relative to the lead vocal (for example, in Rock the drums 2 dB and the bass 4 dB under the vocal; two guitar tracks share the guitars' level);
+- the **pan**: drums, bass and lead vocal in the centre; tracks whose names end in " L" / " R" (or contain "left" / "right") to that side; several guitars, keyboards or backing vocals spread left and right; a single guitar slightly to one side;
+- the **effects**: a high-pass on every track at its role's frequency, and brightness, punch and space amounts typical of the genre and role.
+
+It is a starting point to listen to and adjust, not a finished mix: set the roles right first (FX panel), and remove guide tracks (⊖) before clicking it. **Randomise FX** (at the bottom) tries other effect amounts around the genre's, keeping the faders and pans. **Starting mix**, **Randomise FX** and **Reset settings** are each one step of **Edit → Undo**.
+
+Tracks are measured as recorded (with clip gain), before their own plug-ins; Drum Studio (MIDI) tracks keep their fader and only get pan and effects.
+
 The **Master** column on the right:
 - The **loudness** of the song while it plays, in LUFS (the unit streaming services use): the big figure is the whole playback so far, **Now** the last moment, **Peak** the highest true peak. Each new playback starts a new measurement (**Restart** does it by hand).
 - **Target**: **Streaming (−14 LUFS)**, **Loud (−9 LUFS)** or **Custom**. The column says how far the song is from it.
@@ -252,7 +261,7 @@ None of these are available yet. Each work package adds its section to this guid
 | Feature | What it will do for you | Work package |
 |---|---|---|
 | Songwriter layout and start screen | Recording controls hidden; "New song from WAV files" imports your Zoom R8 tracks aligned in one step | WP2 |
-| Final Mix: Starting mix and Finalise | A "Starting mix" per genre, Before/After listening, Randomise FX and one-click export to WAV and MP3 at the loudness target | WP7 |
+| Final Mix: Before/After and Finalise | Before/After listening at matched loudness, reference track, one-click export to WAV and MP3 at the loudness target | WP7 |
 | CLAP plugins | Load CLAP plugins such as Surge XT | WP8 |
 
 ## Appendix: command-line tools in `bin`

@@ -9,15 +9,20 @@
 
 #include <algorithm>
 #include <cmath>
+#include <random>
 
 #include <glib.h>
 
+#include "pbd/compose.h"
 #include "pbd/xml++.h"
 
 #include "ardour/amp.h"
+#include "ardour/audio_track.h"
+#include "ardour/audioplaylist.h"
 #include "ardour/dB.h"
 #include "ardour/final_mix.h"
 #include "ardour/internal_send.h"
+#include "ardour/lufs_meter.h"
 #include "ardour/lv2_plugin.h"
 #include "ardour/mute_control.h"
 #include "ardour/plugin_insert.h"
@@ -40,6 +45,7 @@ char const* const FinalMix::space_bus_name = X_("Final Mix Space");
 static char const* const node_name = X_("MusicDAWMFinalMix");
 
 PBD::Signal<void()> FinalMix::ExclusionChanged;
+PBD::Signal<void()> FinalMix::SettingsChanged;
 
 namespace {
 
@@ -93,6 +99,27 @@ stereo_at_fader (shared_ptr<Route> r)
 FinalMix::FinalMix (Session& s)
 	: _session (s)
 {
+}
+
+string
+FinalMix::genre_name (Genre g)
+{
+	switch (g) {
+		case Pop:
+			return _("Pop");
+		case Rock:
+			return _("Rock");
+		case Acoustic:
+			return _("Acoustic / Folk");
+		case Electronic:
+			return _("Electronic");
+		case HipHop:
+			return _("Hip-hop");
+		case Metal:
+			return _("Metal");
+		default:
+			return _("Jazz");
+	}
 }
 
 string
@@ -538,4 +565,365 @@ FinalMix::set_limiter_ceiling (float db)
 {
 	set_param (limiter (true), "threshold", std::min (0.f, std::max (-10.f, db)));
 	_session.set_dirty ();
+}
+
+/* ---- Starting mix ---- */
+
+namespace {
+
+/* the rules, per genre (rows: Pop, Rock, Acoustic, Electronic, Hip-hop,
+ * Metal, Jazz) and role (columns: Drums, Bass, Guitars, Keys, Vocals,
+ * Backing vocals, Other) */
+
+/* loudness of the role relative to the lead vocal, dB */
+float const level[FinalMix::NumGenres][FinalMix::NumRoles] = {
+	{ -3, -5, -8, -7, 0, -7, -9 },
+	{ -2, -4, -4, -8, 0, -7, -9 },
+	{ -6, -6, -3, -6, 0, -6, -8 },
+	{ -1, -2, -8, -4, -1, -7, -6 },
+	{ -1, -1, -9, -6, 0, -7, -8 },
+	{ -1, -4, -2, -8, -1, -7, -9 },
+	{ -5, -3, -4, -2, 0, -6, -6 },
+};
+
+float const punch[FinalMix::NumGenres][FinalMix::NumRoles] = {
+	{ .5, .5, .3, .2, .5, .4, .2 },
+	{ .6, .5, .3, .2, .5, .4, .2 },
+	{ .2, .3, .2, .1, .3, .3, .1 },
+	{ .5, .5, .2, .3, .5, .4, .2 },
+	{ .6, .6, .2, .2, .6, .4, .2 },
+	{ .7, .6, .4, .2, .5, .4, .2 },
+	{ .1, .2, .1, .1, .3, .2, .1 },
+};
+
+float const brightness[FinalMix::NumGenres][FinalMix::NumRoles] = {
+	{ 1, 0, .5, .5, 2, 1.5, 0 },
+	{ 1.5, 0, .5, .5, 1.5, 1.5, 0 },
+	{ .5, 0, 1, .5, 1.5, 1, 0 },
+	{ 1, 0, .5, 1, 2.5, 2, .5 },
+	{ 1, 0, .5, .5, 2.5, 2, 0 },
+	{ 1.5, 0, 0, .5, 1.5, 1.5, 0 },
+	{ 0, 0, 0, 0, .5, .5, 0 },
+};
+
+/* reverb amount per role, scaled per genre */
+float const space_role[FinalMix::NumRoles]    = { .1, 0, .2, .25, .3, .35, .2 };
+float const space_genre[FinalMix::NumGenres]  = { 1, .8, 1.1, .9, .6, .6, 1.2 };
+
+/* the lead vocal's loudness in the mix, before the limiter (LUFS) */
+float const vocal_lufs = -22;
+
+/* a pan hint in the track name: -1 left, 1 right, 0 none */
+int
+pan_hint (string const& name)
+{
+	gchar* l = g_utf8_strdown (name.c_str (), -1);
+	string n (l);
+	g_free (l);
+	if (n.find ("left") != string::npos || n.find ("gauche") != string::npos) {
+		return -1;
+	}
+	if (n.find ("right") != string::npos || n.find ("droite") != string::npos) {
+		return 1;
+	}
+	if (n.size () >= 2 && n[n.size () - 2] == ' ') {
+		if (n.back () == 'l') {
+			return -1;
+		}
+		if (n.back () == 'r') {
+			return 1;
+		}
+	}
+	return 0;
+}
+
+/* -1 .. 1 to an azimuth */
+float
+azimuth (float p)
+{
+	return std::max (0.f, std::min (1.f, (p + 1) / 2));
+}
+
+} // namespace
+
+FinalMix::Genre
+FinalMix::genre () const
+{
+	int g = Pop;
+	session_node ()->get_property (X_("genre"), g);
+	return (g >= 0 && g < NumGenres) ? (Genre)g : Pop;
+}
+
+float
+FinalMix::track_loudness (shared_ptr<Route> r) const
+{
+	shared_ptr<AudioTrack>    t  = std::dynamic_pointer_cast<AudioTrack> (r);
+	shared_ptr<AudioPlaylist> pl = t ? std::dynamic_pointer_cast<AudioPlaylist> (t->playlist ()) : shared_ptr<AudioPlaylist> ();
+	/* a copy of the list: keep it while iterating */
+	std::shared_ptr<RegionList> const regions = pl ? pl->region_list () : std::shared_ptr<RegionList> ();
+	if (!regions || regions->empty ()) {
+		return -200;
+	}
+	uint32_t const nch = std::max<uint32_t> (1, std::min<uint32_t> (2, t->n_inputs ().n_audio ()));
+	samplepos_t    pos = regions->front ()->position ().samples ();
+	samplepos_t    end = 0;
+	for (auto const& reg : *regions) {
+		pos = std::min (pos, reg->position ().samples ());
+		end = std::max (end, reg->end_position ().samples ());
+	}
+	LUFSMeter                meter (_session.nominal_sample_rate (), nch);
+	samplecnt_t const        block = 65536;
+	std::vector<Sample>      buf[2] = { std::vector<Sample> (block), std::vector<Sample> (block) };
+	std::vector<Sample>      mix (block);
+	std::vector<float>       gain (block);
+	while (pos < end) {
+		samplecnt_t const n = std::min (block, end - pos);
+		float const*      data[2];
+		for (uint32_t c = 0; c < nch; ++c) {
+			std::fill (buf[c].begin (), buf[c].begin () + n, 0.f);
+			pl->read (buf[c].data (), mix.data (), gain.data (), timepos_t (pos), timecnt_t (n), c);
+			data[c] = buf[c].data ();
+		}
+		meter.run (data, n);
+		pos += n;
+	}
+	float const l = meter.integrated_loudness ();
+	if (l <= -200) {
+		return -200;
+	}
+	/* LUFSMeter counts a mono signal twice (dual mono); at the centre of a
+	 * stereo mix it gets half of that power on each side */
+	return nch == 1 ? l - 3.0103f : l;
+}
+
+FinalMix::Snapshot
+FinalMix::snapshot () const
+{
+	Snapshot v;
+	for (auto const& r : tracks ()) {
+		if (excluded (r)) {
+			continue;
+		}
+		TrackState ts;
+		ts.route    = r->id ();
+		ts.gain     = r->gain_control ()->get_value ();
+		ts.pan      = r->pan_azimuth_control () ? r->pan_azimuth_control ()->get_value () : -1;
+		ts.settings = settings (r);
+		v.push_back (ts);
+	}
+	return v;
+}
+
+void
+FinalMix::restore (Snapshot const& v)
+{
+	for (auto const& ts : v) {
+		shared_ptr<Route> r = _session.route_by_id (ts.route);
+		if (!r) {
+			continue;
+		}
+		r->gain_control ()->set_value (ts.gain, PBD::Controllable::NoGroup);
+		if (ts.pan >= 0 && r->pan_azimuth_control ()) {
+			r->pan_azimuth_control ()->set_value (ts.pan, PBD::Controllable::NoGroup);
+		}
+		set_settings (r, ts.settings);
+	}
+	SettingsChanged (); /* EMIT SIGNAL */
+}
+
+void
+FinalMix::commit_snapshot (string const& name, Snapshot const& before)
+{
+	_session.begin_reversible_command (name);
+	_session.commit_reversible_command (new SnapshotCommand (*this, name, before, snapshot ()));
+	_session.set_dirty ();
+	SettingsChanged (); /* EMIT SIGNAL */
+}
+
+int
+FinalMix::starting_mix (Genre g)
+{
+	Snapshot const before = snapshot ();
+	session_node ()->set_property (X_("genre"), (int)g);
+
+	/* the tracks of each role, to share the role's level and spread them */
+	std::vector<shared_ptr<Route>> by_role[NumRoles];
+	for (auto const& r : tracks ()) {
+		if (!excluded (r)) {
+			by_role[settings (r).role].push_back (r);
+		}
+	}
+
+	int n_set = 0;
+	for (int role = 0; role < NumRoles; ++role) {
+		std::vector<shared_ptr<Route>> const& rs = by_role[role];
+		if (rs.empty ()) {
+			continue;
+		}
+		/* tracks of one role share its loudness */
+		float const each = vocal_lufs + level[g][role] - 10 * log10f ((float)rs.size ());
+		int         side = 0; /* spreading: L, R, L, R ... */
+		for (size_t k = 0; k < rs.size (); ++k) {
+			shared_ptr<Route> r = rs[k];
+
+			float const l = track_loudness (r);
+			if (l > -200) {
+				float const db = std::max (-40.f, std::min (12.f, each - l));
+				r->gain_control ()->set_value (dB_to_coefficient (db), PBD::Controllable::NoGroup);
+			}
+
+			if (shared_ptr<AutomationControl> pan = r->pan_azimuth_control ()) {
+				float      p    = 0;
+				int const  hint = pan_hint (r->name ());
+				if (hint) {
+					p = 0.8f * hint;
+				} else if (role == Drums || role == Bass || role == Vocals) {
+					p = 0; /* the anchors stay in the centre */
+				} else if (rs.size () == 1) {
+					/* a single guitar, keyboard ... makes room for the vocal */
+					p = (role == Keys || role == Other) ? 0.25f : -0.25f;
+				} else {
+					float const spread[] = { 0.5f, 0.3f, 0.7f, 0.4f, 0.6f };
+					p = spread[(k / 2) % 5] * (side++ % 2 ? 1 : -1);
+				}
+				pan->set_value (azimuth (p), PBD::Controllable::NoGroup);
+			}
+
+			Settings s      = settings (r);
+			s.high_pass     = true;
+			s.hp_freq       = default_hp_freq (s.role);
+			s.brightness_db = brightness[g][role];
+			s.punch         = punch[g][role];
+			s.space         = std::min (1.f, space_role[role] * space_genre[g]);
+			set_settings (r, s);
+			++n_set;
+		}
+	}
+	commit_snapshot (string_compose (_("starting mix (%1)"), genre_name (g)), before);
+	return n_set;
+}
+
+void
+FinalMix::randomise (uint32_t seed)
+{
+	Snapshot const                        before = snapshot ();
+	Genre const                           g      = genre ();
+	std::mt19937                          rng (seed);
+	std::uniform_real_distribution<float> u (-1, 1);
+	for (auto const& r : tracks ()) {
+		if (excluded (r)) {
+			continue;
+		}
+		Settings s      = settings (r);
+		int const role  = s.role;
+		s.high_pass     = true;
+		s.hp_freq       = default_hp_freq (s.role) * powf (1.25f, u (rng));
+		s.brightness_db = std::max (-6.f, std::min (6.f, brightness[g][role] + 1.5f * u (rng)));
+		s.punch         = std::max (0.f, std::min (1.f, punch[g][role] + 0.15f * u (rng)));
+		s.space         = std::max (0.f, std::min (1.f, space_role[role] * space_genre[g] + 0.1f * u (rng)));
+		/* the panel shows whole steps */
+		s.hp_freq       = roundf (s.hp_freq);
+		s.brightness_db = roundf (s.brightness_db * 2) / 2;
+		s.punch         = roundf (s.punch * 100) / 100;
+		s.space         = roundf (s.space * 100) / 100;
+		set_settings (r, s);
+	}
+	commit_snapshot (_("randomise FX"), before);
+}
+
+void
+FinalMix::reset_all ()
+{
+	Snapshot const before = snapshot ();
+	for (auto const& r : tracks ()) {
+		if (!excluded (r)) {
+			reset (r);
+		}
+	}
+	commit_snapshot (_("reset the final mix"), before);
+}
+
+/* ---- undo ---- */
+
+FinalMix::SnapshotCommand::SnapshotCommand (FinalMix& fm, string const& name, Snapshot const& before, Snapshot const& after)
+	: _fm (&fm)
+	, _own_fm (false)
+	, _before (before)
+	, _after (after)
+{
+	set_name (name);
+}
+
+/* the window's FinalMix may be gone when the history is replayed; a
+ * command restored from the session history has its own */
+FinalMix::SnapshotCommand::SnapshotCommand (Session& s, XMLNode const& node)
+	: _fm (new FinalMix (s))
+	, _own_fm (true)
+{
+	string name;
+	if (node.get_property (X_("name"), name)) {
+		set_name (name);
+	}
+	for (auto const& c : node.children ()) {
+		Snapshot& v = (c->name () == X_("Before")) ? _before : _after;
+		for (auto const& t : c->children ()) {
+			TrackState ts;
+			string     id;
+			int        role = Other;
+			t->get_property (X_("route"), id);
+			ts.route = PBD::ID (id);
+			t->get_property (X_("gain"), ts.gain);
+			t->get_property (X_("pan"), ts.pan);
+			t->get_property (X_("role"), role);
+			ts.settings.role = (role >= 0 && role < NumRoles) ? (Role)role : Other;
+			t->get_property (X_("high-pass"), ts.settings.high_pass);
+			t->get_property (X_("hp-freq"), ts.settings.hp_freq);
+			t->get_property (X_("brightness"), ts.settings.brightness_db);
+			t->get_property (X_("punch"), ts.settings.punch);
+			t->get_property (X_("space"), ts.settings.space);
+			v.push_back (ts);
+		}
+	}
+}
+
+FinalMix::SnapshotCommand::~SnapshotCommand ()
+{
+	if (_own_fm) {
+		delete _fm;
+	}
+}
+
+void
+FinalMix::SnapshotCommand::operator() ()
+{
+	_fm->restore (_after);
+}
+
+void
+FinalMix::SnapshotCommand::undo ()
+{
+	_fm->restore (_before);
+}
+
+XMLNode&
+FinalMix::SnapshotCommand::get_state () const
+{
+	XMLNode* n = new XMLNode (X_("FinalMixSnapshotCommand"));
+	n->set_property (X_("name"), name ());
+	for (int k = 0; k < 2; ++k) {
+		XMLNode* c = n->add_child (k == 0 ? X_("Before") : X_("After"));
+		for (auto const& ts : (k == 0 ? _before : _after)) {
+			XMLNode* t = c->add_child (X_("Track"));
+			t->set_property (X_("route"), ts.route.to_s ());
+			t->set_property (X_("gain"), ts.gain);
+			t->set_property (X_("pan"), ts.pan);
+			t->set_property (X_("role"), (int)ts.settings.role);
+			t->set_property (X_("high-pass"), ts.settings.high_pass);
+			t->set_property (X_("hp-freq"), ts.settings.hp_freq);
+			t->set_property (X_("brightness"), ts.settings.brightness_db);
+			t->set_property (X_("punch"), ts.settings.punch);
+			t->set_property (X_("space"), ts.settings.space);
+		}
+	}
+	return *n;
 }

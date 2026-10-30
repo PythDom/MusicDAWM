@@ -66,6 +66,17 @@ public:
 		bool neutral () const { return !high_pass && brightness_db == 0 && punch == 0 && space == 0; }
 	};
 
+	enum Genre {
+		Pop = 0,
+		Rock,
+		Acoustic,
+		Electronic,
+		HipHop,
+		Metal,
+		Jazz,
+		NumGenres
+	};
+
 	enum Target {
 		Streaming = 0, /* -14 LUFS */
 		Loud,          /* -9 LUFS */
@@ -74,6 +85,7 @@ public:
 
 	FinalMix (Session&);
 
+	static std::string genre_name (Genre);
 	static std::string role_name (Role);
 	static Role        guess_role (std::string const& track_name);
 	static float       default_hp_freq (Role);
@@ -88,6 +100,34 @@ public:
 	void set_settings (std::shared_ptr<Route>, Settings const&);
 	/* settings neutral, fader 0 dB, pan centre */
 	void reset (std::shared_ptr<Route>);
+
+	/* what the window can undo in one step: the faders, pans and settings
+	 * of the tracks in the mix */
+	struct TrackState {
+		PBD::ID  route;
+		float    gain;
+		float    pan; /* azimuth 0 (left) .. 1 (right); < 0: no panner */
+		Settings settings;
+	};
+	typedef std::vector<TrackState> Snapshot;
+	Snapshot snapshot () const;
+	void     restore (Snapshot const&);
+
+	/* Starting mix: balance (from each track's measured loudness), pan and
+	 * effects from rules per genre and role; one undo step. Returns the
+	 * number of tracks set. */
+	Genre genre () const;
+	int   starting_mix (Genre);
+	/* Randomise FX: new effect amounts around the genre's (faders and pans
+	 * stay); one undo step */
+	void randomise (uint32_t seed);
+	/* every track in the mix reset; one undo step */
+	void reset_all ();
+
+	/* the integrated loudness (LUFS) of a track's audio, with region gain
+	 * and Region FX, before its plug-ins and fader, as it would sound at
+	 * the centre of a stereo mix; <= -200: silent or no audio */
+	float track_loudness (std::shared_ptr<Route>) const;
 
 	/* all Final Mix processors on or off (the settings are kept) */
 	bool fx_enabled () const;
@@ -105,6 +145,8 @@ public:
 
 	/* a track was removed from or brought back into the mix (also by undo) */
 	static PBD::Signal<void()> ExclusionChanged;
+	/* faders, pans or settings changed together (Starting mix, undo ...) */
+	static PBD::Signal<void()> SettingsChanged;
 
 	static char const* const eq_name;
 	static char const* const punch_name;
@@ -127,8 +169,27 @@ public:
 		void     apply (bool) const;
 	};
 
+	class LIBARDOUR_API SnapshotCommand : public PBD::Command
+	{
+	public:
+		SnapshotCommand (FinalMix&, std::string const& name, Snapshot const& before, Snapshot const& after);
+		SnapshotCommand (Session&, XMLNode const&);
+		~SnapshotCommand ();
+		void     operator() ();
+		void     undo ();
+		XMLNode& get_state () const;
+
+	private:
+		FinalMix* _fm;
+		bool      _own_fm;
+		Snapshot  _before;
+		Snapshot  _after;
+	};
+
 private:
 	Session& _session;
+
+	void commit_snapshot (std::string const& name, Snapshot const& before);
 
 	std::shared_ptr<PluginInsert> find_plugin (std::shared_ptr<Route>, char const* name) const;
 	std::shared_ptr<PluginInsert> make_plugin (std::shared_ptr<Route>, char const* name, std::string const& uri, bool pre_fader);
