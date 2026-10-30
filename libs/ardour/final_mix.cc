@@ -1315,6 +1315,12 @@ FinalMix::finalise (string const& folder, string const& name, bool mp3, std::fun
 		f.true_peak      = a.true_peak;
 		if (!f.ok) {
 			f.error = _("The exported file could not be read back.");
+		} else if (a.true_peak > limiter_ceiling () + 0.5f || fabsf (a.lufs - target_lufs ()) > 1.5f) {
+			/* never hand over a file that missed the target or clips (seen
+			 * when the export's loudness analysis was not available) */
+			f.ok    = false;
+			f.error = string_compose (_("The file came out at %1 LUFS with peaks at %2 dBTP instead of %3 LUFS under %4 dBTP: the loudness normalisation did not work. The file was kept for inspection: %5"),
+			                          roundf (a.lufs * 10) / 10, roundf (a.true_peak * 10) / 10, target_lufs (), limiter_ceiling (), f.wav);
 		}
 	}
 	set_listen (was);

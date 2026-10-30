@@ -54,6 +54,7 @@ In the program (Xvfb, the Mother smoke session and the test session reopened): t
 
 ## Found and fixed during the work
 
+- Finalise on Windows: the command-line tools in `bin` did not set `VAMP_PATH` as the GUI does, so Ardour's export found no loudness analysis plug-ins and normalised blindly (a clipped file at −1.9 LUFS). The session utilities now set it, and Finalise checks the file it made: a result that misses the target by more than 1.5 LU or the ceiling by more than 0.5 dB is reported as a failure, never as a finished song.
 - Loudness meter: on the Windows runner the first cycle of a playback carried garbage samples (≈1e26), which spoilt the measurement; such cycles are now skipped.
 - `Playlist::region_list ()` returns a fresh copy: iterating it directly used a destroyed list (crash).
 - Adding a plug-in from the FX panel rebuilt the columns and deleted the panel; panels now belong to the window.

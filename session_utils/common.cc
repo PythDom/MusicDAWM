@@ -31,6 +31,7 @@
 
 #include "ardour/audioengine.h"
 #include "ardour/filename_extensions.h"
+#include "ardour/filesystem_paths.h"
 #include "ardour/lua_api.h"
 #include "ardour/types.h"
 
@@ -116,6 +117,13 @@ static MyEventLoop *event_loop;
 void
 SessionUtils::init (bool print_log)
 {
+#ifdef PLATFORM_WINDOWS
+	/* MusicDAWM: as the GUI does at start-up (bundle_env_mingw.cc), so that
+	 * exports find the bundled analysis plug-ins (loudness normalisation) */
+	if (!getenv ("VAMP_PATH")) {
+		Glib::setenv ("VAMP_PATH", Glib::build_filename (ARDOUR::ardour_dll_directory (), "vamp"), true);
+	}
+#endif
 	if (!ARDOUR::init (true, localedir)) {
 		cerr << "Ardour failed to initialize\n" << endl;
 		::exit (EXIT_FAILURE);
