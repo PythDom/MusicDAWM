@@ -23,6 +23,19 @@ rm -f bin/ardour-[0-9]*.exe bin/hardour-[0-9]*.exe   # MusicDAWM.exe is the GUI;
 # Import libraries are for linking only.
 find . -name '*.dll.a' -delete
 
+# The Vamp analysis plug-ins (export loudness normalisation, the loudness
+# analysis, Final Mix) are found by library name: lib/<name>/vamp/
+# libardourvampplugins.dll, as Ardour's own tools/x-win/package.sh ships them.
+ALIB=$(ls -d lib/ardour[0-9]* | head -n 1)
+mkdir -p "$ALIB/vamp"
+for n in ardourvampplugins ardourvamppyin; do
+	f=$(find "$SRC/build/libs" -name "*${n}*.dll" ! -name '*.dll.a' | head -n 1)
+	[ -n "$f" ] || { echo "vamp plug-in $n not built" >&2; exit 1; }
+	cp "$f" "$ALIB/vamp/lib${n}.dll"
+done
+find "$ALIB/vamp" -name '*.dll' ! -name 'libardourvamp*.dll' -delete
+ls -l "$ALIB/vamp"
+
 # On Windows, Ardour looks for its configuration (theme, keybindings, menus)
 # only in share/<name>, not in etc/<name>.
 for d in etc/*/; do
