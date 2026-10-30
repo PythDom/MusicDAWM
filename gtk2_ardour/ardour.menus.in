@@ -707,6 +707,7 @@
         <menuitem action='attach-mixer'/>
         <menuitem action='detach-mixer'/>
       </menu>
+      <menuitem action='final-mix'/>
       <menu action='RecorderMenu'>
         <menuitem action='show-recorder'/>
         <menuitem action='hide-recorder'/>

@@ -1924,7 +1924,9 @@ Session::master_loudness () const
 	if (!_master_lufs) {
 		return { -200, -200, -200 };
 	}
-	return { _master_lufs->momentary (), _master_lufs->integrated_loudness (), _master_lufs->dbtp () };
+	/* "now" only means something while playing */
+	float const m = _master_lufs_rolling ? _master_lufs->momentary () : -200;
+	return { m, _master_lufs->integrated_loudness (), _master_lufs->dbtp () };
 }
 
 void

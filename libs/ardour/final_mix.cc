@@ -39,6 +39,8 @@ char const* const FinalMix::space_bus_name = X_("Final Mix Space");
 
 static char const* const node_name = X_("MusicDAWMFinalMix");
 
+PBD::Signal<void()> FinalMix::ExclusionChanged;
+
 namespace {
 
 shared_ptr<AutomationControl>
@@ -209,6 +211,7 @@ FinalMix::store_excluded (Session&, shared_ptr<Route> r, bool yn)
 		r->mute_control ()->set_value (was_muted ? 1 : 0, PBD::Controllable::NoGroup);
 	}
 	n->set_property (X_("excluded"), yn);
+	ExclusionChanged (); /* EMIT SIGNAL */
 }
 
 void

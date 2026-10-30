@@ -124,6 +124,7 @@
 #include "editor_section_box.h"
 #include "editor_sections.h"
 #include "drum_studio_panel.h"
+#include "final_mix_window.h"
 #include "tap_tempo_window.h"
 #include "editor_snapshots.h"
 #include "editor_sources.h"
@@ -1300,6 +1301,9 @@ Editor::set_session (Session *t)
 
 	_trigger_clip_picker.set_session (_session);
 	_drum_studio->set_session (_session);
+	if (_final_mix_window) {
+		_final_mix_window->set_session (_session);
+	}
 	if (_tap_tempo_window) {
 		_tap_tempo_window->set_session (_session);
 	}
@@ -5639,6 +5643,16 @@ Editor::show_tap_tempo_window ()
 		_tap_tempo_window->set_session (_session);
 	}
 	_tap_tempo_window->present ();
+}
+
+void
+Editor::show_final_mix_window ()
+{
+	if (!_final_mix_window) {
+		_final_mix_window = new FinalMixWindow (*this);
+		_final_mix_window->set_session (_session);
+	}
+	_final_mix_window->present ();
 }
 
 void

@@ -30,6 +30,7 @@
 
 #include "pbd/command.h"
 #include "pbd/id.h"
+#include "pbd/signals.h"
 
 #include "ardour/libardour_visibility.h"
 #include "ardour/types.h"
@@ -101,6 +102,9 @@ public:
 	void  set_limiter_ceiling (float);
 
 	std::shared_ptr<Route> space_bus () const;
+
+	/* a track was removed from or brought back into the mix (also by undo) */
+	static PBD::Signal<void()> ExclusionChanged;
 
 	static char const* const eq_name;
 	static char const* const punch_name;

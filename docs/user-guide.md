@@ -5,7 +5,7 @@ This guide covers only what is **specific to MusicDAWM**. Everything that works 
 
 *Status: 2026-10-24, MusicDAWM 0.1.0 (work packages WP1, WP3, WP5, WP6, WP9).*
 
-> **What exists today.** MusicDAWM is Ardour 9.8 under its own name (§4), packaged as a portable Windows folder, with Drum Studio (§6), DAWproject import (§7), Waveform and Cubase migration (§8), Melodyne through ARA (§9, on hold: see there) the Tap Tempo Map (§10) and the first mixing tools (§11). §12 lists what is still to come.
+> **What exists today.** MusicDAWM is Ardour 9.8 under its own name (§4), packaged as a portable Windows folder, with Drum Studio (§6), DAWproject import (§7), Waveform and Cubase migration (§8), Melodyne through ARA (§9, on hold: see there) the Tap Tempo Map (§10) and the Final Mix window (§11). §12 lists what is still to come.
 
 ## 1. Getting the program
 
@@ -204,9 +204,36 @@ What changes and what does not:
 
 Good to know: tap times are taken from what you hear (the playback latency is compensated), so tapping is as accurate as your timing; with **Snap** it is as accurate as the hits on the chosen track.
 
-## 11. Mixing: Freeze and the bundled limiter and EQ
+## 11. Mixing: the Final Mix window, Freeze, limiter and EQ
 
-This section grows with the Final Mix window (WP7); for now it covers the parts that are already in.
+### The Final Mix window
+
+**Window → Final Mix…** shows the song as a simple mixing desk: one column per track, grouped by role (Drums, Bass, Guitars, Keys, Vocals, Backing vocals, Other). The role is guessed from the track name ("Kick", "Bass DI", "Lead Vox", …) and can be changed in the track's FX panel.
+
+Each column, from top to bottom:
+- **Name** and **↺** (reset: no effects, fader at 0 dB, pan in the centre).
+- **Pan** knob (left – centre – right; double-click returns to the centre).
+- **Fader** with its level meter and the value in dB.
+- **FX**: opens the track's panel:
+  - **High-pass**: removes the low end the track does not need (rumble, mud). The frequency starts at a value that suits the role (for example 100 Hz for a vocal, 35 Hz for a bass).
+  - **Brightness**: a gentle lift (or cut) of the highs above about 6 kHz.
+  - **Punch**: compression that evens out the level and keeps the attacks.
+  - **Space**: how much of the track goes to a shared reverb.
+  - **Role**: moves the column to another group.
+- **M** / **S**: mute and solo.
+- **⊖**: removes the track from this mix. Its column disappears and the track is muted (not heard while you mix, and not in the export). **+ Tracks** at the bottom lists the removed tracks and brings one back, with the mute state it had before. **Edit → Undo** works too. The choice is saved with the session.
+
+At the top: **FX ON** switches all these effects off and on, to compare (the settings are kept); **Reset settings** resets every track; **Open classic mixer** shows the full mixer. Below, ⏮ and ▶/■ move to the start and play or stop (Space works too).
+
+The **Master** column on the right:
+- The **loudness** of the song while it plays, in LUFS (the unit streaming services use): the big figure is the whole playback so far, **Now** the last moment, **Peak** the highest true peak. Each new playback starts a new measurement (**Restart** does it by hand).
+- **Target**: **Streaming (−14 LUFS)**, **Loud (−9 LUFS)** or **Custom**. The column says how far the song is from it.
+- **Limiter ceiling**: changing it puts a limiter last on the master bus (the first time), which keeps the true peaks under that level; −1 dBTP is safe for streaming and MP3.
+- The master fader.
+
+Everything the window does is made of ordinary plug-ins and sends, named "Final Mix EQ", "Final Mix Punch", the "Final Mix Space" bus and "Final Mix Limiter", so the classic mixer shows them and they can be fine-tuned there.
+
+### Freeze, limiter and EQ
 
 **Freeze a track.** Plug-ins such as Melodyne, amp simulators or big reverbs can make the computer struggle. In the **Mixer**, click **Freeze** at the bottom of the track's strip: the track is rendered once with its plug-ins and then plays the rendered copy, using almost no processing power. The button then reads **Frozen**. Click it again to **unfreeze**: the original recording and plug-ins come back, unchanged. While a track is frozen its plug-ins and regions cannot be edited.
 - The button is shown on audio tracks only. It can be hidden in **Edit > Preferences > Appearance > Mixer** (Mixer Strip), like Ardour's other strip elements.
@@ -225,7 +252,7 @@ None of these are available yet. Each work package adds its section to this guid
 | Feature | What it will do for you | Work package |
 |---|---|---|
 | Songwriter layout and start screen | Recording controls hidden; "New song from WAV files" imports your Zoom R8 tracks aligned in one step | WP2 |
-| Final Mix window | Tracks side by side with pan, level, a few simple effects, a "Starting mix" per genre, Before/After listening, loudness target and one-click export to WAV and MP3 | WP7 |
+| Final Mix: Starting mix and Finalise | A "Starting mix" per genre, Before/After listening, Randomise FX and one-click export to WAV and MP3 at the loudness target | WP7 |
 | CLAP plugins | Load CLAP plugins such as Surge XT | WP8 |
 
 ## Appendix: command-line tools in `bin`

@@ -438,6 +438,7 @@ Editor::register_actions ()
 
 	act = ActionManager::register_action (editor_actions, "set-tempo-from-edit-range", _("Set Tempo from Edit Range = Bar"), sigc::mem_fun(*this, &Editor::use_range_as_bar));
 	reg_sens (editor_actions, "tap-tempo-map", _("Tap Tempo Map..."), sigc::mem_fun (*this, &Editor::show_tap_tempo_window)); /* MusicDAWM WP4 */
+	reg_sens (editor_actions, "final-mix", _("Final Mix..."), sigc::mem_fun (*this, &Editor::show_final_mix_window)); /* MusicDAWM WP7 */
 	ActionManager::time_selection_sensitive_actions.push_back (act);
 
 	toggle_reg_sens (editor_actions, "toggle-log-window", _("Log"),
