@@ -11,18 +11,22 @@
 
 #include <ytkmm/adjustment.h>
 #include <ytkmm/checkbutton.h>
+#include <ytkmm/filechooserdialog.h>
+#include <ytkmm/stock.h>
 #include <ytkmm/frame.h>
 #include <ytkmm/menu.h>
 #include <ytkmm/scale.h>
 #include <ytkmm/table.h>
 
 #include "pbd/compose.h"
+#include "pbd/openuri.h"
 
 #include "ardour/amp.h"
 #include "ardour/dB.h"
 #include "ardour/mute_control.h"
 #include "ardour/route.h"
 #include "ardour/session.h"
+#include "ardour/session_directory.h"
 #include "ardour/solo_control.h"
 
 #include "gtkmm2ext/utils.h"
@@ -337,6 +341,13 @@ FinalMixWindow::FinalMixWindow (PublicEditor& e)
 	, _classic (_("Open classic mixer"))
 	, _starting_mix (_("Starting mix"))
 	, _randomise (_("Randomise FX"))
+	, _before (_("Before"))
+	, _after (_("After"))
+	, _ref (_("Ref"))
+	, _reference (_("Reference..."))
+	, _match (_("Match to reference"))
+	, _clear_match (_("Clear match"))
+	, _finalise (_("Finalise Mix..."))
 	, _to_start (X_("⏮"))
 	, _play (X_("▶"))
 	, _add_tracks (_("+ Tracks"))
@@ -359,6 +370,14 @@ FinalMixWindow::FinalMixWindow (PublicEditor& e)
 	set_tooltip (_starting_mix, _("Set a first balance, pan and effects for the chosen genre, from each track's role and loudness. Edit > Undo goes back."));
 	set_tooltip (_randomise, _("Try other effect amounts around the genre's (the faders and pans stay). Edit > Undo goes back."));
 	top->pack_end (_classic, false, false);
+	HBox* listen = manage (new HBox (true, 0));
+	listen->pack_start (_before, true, true);
+	listen->pack_start (_after, true, true);
+	listen->pack_start (_ref, true, true);
+	top->pack_end (*listen, false, false, 12);
+	set_tooltip (_before, _("Hear the tracks as recorded (faders 0 dB, pan centre, no Final Mix effects) at the loudness of the mix"));
+	set_tooltip (_after, _("Hear the mix"));
+	set_tooltip (_ref, _("Hear the reference song alone, at the loudness of the mix (Reference... chooses it)"));
 	set_tooltip (_fx_on, _("Switch all Final Mix effects off to hear the tracks without them (the settings are kept)."));
 	set_tooltip (_reset_all, _("Reset every track: no effects, faders at 0 dB, pan centre. Edit > Undo goes back."));
 
@@ -425,6 +444,16 @@ FinalMixWindow::FinalMixWindow (PublicEditor& e)
 	HBox* bottom = manage (new HBox (false, 6));
 	bottom->pack_start (_add_tracks, false, false);
 	bottom->pack_start (_randomise, false, false);
+	bottom->pack_start (_reference, false, false, 12);
+	bottom->pack_start (_match, false, false);
+	bottom->pack_start (_clear_match, false, false);
+	bottom->pack_start (_busy, false, false, 6);
+	bottom->pack_end (_finalise, false, false);
+	_finalise.set_name (X_("record enable button"));
+	set_tooltip (_reference, _("Choose a finished song you like (WAV, FLAC, MP3...) to compare with and to match"));
+	set_tooltip (_match, _("Analyse the mix and the reference, then set the loudness target and a gentle master EQ towards the reference, with advice"));
+	set_tooltip (_clear_match, _("Switch the reference's master EQ off and go back to the earlier loudness target"));
+	set_tooltip (_finalise, _("Export the song as WAV (and MP3 when FFmpeg is installed) at the loudness target, with the true peaks under the ceiling"));
 	cols->pack_start (*bottom, false, false);
 	middle->pack_start (*cols, true, true);
 	middle->pack_start (*master_frame, false, false);
@@ -442,6 +471,13 @@ FinalMixWindow::FinalMixWindow (PublicEditor& e)
 	_reset_all.signal_clicked.connect (sigc::mem_fun (*this, &FinalMixWindow::reset_all_clicked));
 	_starting_mix.signal_clicked.connect (sigc::mem_fun (*this, &FinalMixWindow::starting_mix_clicked));
 	_randomise.signal_clicked.connect (sigc::mem_fun (*this, &FinalMixWindow::randomise_clicked));
+	_before.signal_clicked.connect (sigc::bind (sigc::mem_fun (*this, &FinalMixWindow::listen_clicked), FinalMix::Before));
+	_after.signal_clicked.connect (sigc::bind (sigc::mem_fun (*this, &FinalMixWindow::listen_clicked), FinalMix::After));
+	_ref.signal_clicked.connect (sigc::bind (sigc::mem_fun (*this, &FinalMixWindow::listen_clicked), FinalMix::Ref));
+	_reference.signal_clicked.connect (sigc::mem_fun (*this, &FinalMixWindow::reference_clicked));
+	_match.signal_clicked.connect (sigc::mem_fun (*this, &FinalMixWindow::match_clicked));
+	_clear_match.signal_clicked.connect (sigc::mem_fun (*this, &FinalMixWindow::clear_match_clicked));
+	_finalise.signal_clicked.connect (sigc::mem_fun (*this, &FinalMixWindow::finalise_clicked));
 	_classic.signal_clicked.connect ([] () {
 		if (Glib::RefPtr<Gtk::Action> a = ActionManager::get_action (X_("Common"), X_("show-mixer"))) {
 			a->activate ();
@@ -518,6 +554,10 @@ FinalMixWindow::set_session (Session* s)
 	_session_connections.drop_connections ();
 	drop_fx_windows ();
 	_model.reset (s ? new FinalMix (*s) : nullptr);
+	if (_model && _model->listen () != FinalMix::After) {
+		/* a session saved while listening to Before or Ref */
+		_model->set_listen (FinalMix::After);
+	}
 	if (s) {
 		s->RouteAdded.connect (_session_connections, invalidator (*this), std::bind (&FinalMixWindow::queue_rebuild, this), gui_context ());
 		if (is_visible ()) {
@@ -546,6 +586,10 @@ FinalMixWindow::on_hide ()
 	_slow_timer.disconnect ();
 	if (_session) {
 		_session->set_master_loudness_metering (false);
+	}
+	/* the window gone, the mix plays */
+	if (_model && _model->listen () != FinalMix::After) {
+		_model->set_listen (FinalMix::After);
 	}
 	ArdourWindow::on_hide ();
 }
@@ -664,6 +708,7 @@ FinalMixWindow::sync_master ()
 	_ignore_changes = true;
 	_fx_on.set_active (_model->fx_enabled ());
 	_genre.set_active ((int)_model->genre ());
+	sync_listen ();
 	_target.set_active ((int)_model->target ());
 	_custom.set_value (_model->target () == FinalMix::Custom ? _model->target_lufs () : -14);
 	_custom.set_visible (_model->target () == FinalMix::Custom);
@@ -717,6 +762,179 @@ FinalMixWindow::settings_changed ()
 	}
 	/* roles may have changed (undo) */
 	queue_rebuild ();
+	sync_listen ();
+}
+
+void
+FinalMixWindow::sync_listen ()
+{
+	if (!_model) {
+		return;
+	}
+	FinalMix::Listen const l = _model->listen ();
+	_before.set_active (l == FinalMix::Before);
+	_after.set_active (l == FinalMix::After);
+	_ref.set_active (l == FinalMix::Ref);
+	bool const has_ref = (bool)_model->reference_track ();
+	_ref.set_sensitive (has_ref);
+	_match.set_sensitive (has_ref);
+	_clear_match.set_sensitive (_model->matched ());
+	_reference.set_text (has_ref ? _("Reference: change...") : _("Reference..."));
+	/* while listening to Before, the mix's controls would change the wrong thing */
+	_starting_mix.set_sensitive (l == FinalMix::After);
+	_randomise.set_sensitive (l == FinalMix::After);
+	_reset_all.set_sensitive (l == FinalMix::After);
+	_fx_on.set_sensitive (l == FinalMix::After);
+	_columns.set_sensitive (l == FinalMix::After);
+}
+
+void
+FinalMixWindow::listen_clicked (FinalMix::Listen l)
+{
+	if (_model) {
+		PublicEditor::CursorRAII cr (_editor, _editor.cursors ()->wait);
+		gdk_flush ();
+		_model->set_listen (l);
+		sync_listen ();
+	}
+}
+
+void
+FinalMixWindow::busy (string const& what)
+{
+	_busy.set_text (what);
+	get_child ()->set_sensitive (what.empty ());
+	idle ();
+}
+
+void
+FinalMixWindow::idle ()
+{
+	while (gtk_events_pending ()) {
+		gtk_main_iteration ();
+	}
+	Glib::usleep (20000);
+}
+
+void
+FinalMixWindow::reference_clicked ()
+{
+	if (!_model) {
+		return;
+	}
+	FileChooserDialog d (*this, _("Choose a reference song"), FILE_CHOOSER_ACTION_OPEN);
+	d.add_button (Stock::CANCEL, RESPONSE_CANCEL);
+	d.add_button (Stock::OPEN, RESPONSE_OK);
+	FileFilter audio;
+	audio.set_name (_("Audio files"));
+	for (char const* e : { "*.wav", "*.WAV", "*.flac", "*.FLAC", "*.mp3", "*.MP3", "*.aif", "*.aiff", "*.ogg", "*.m4a" }) {
+		audio.add_pattern (e);
+	}
+	d.add_filter (audio);
+	if (d.run () != RESPONSE_OK) {
+		return;
+	}
+	string const path = d.get_filename ();
+	d.hide ();
+	busy (_("Importing and analysing the reference..."));
+	int const r = _model->set_reference (path);
+	busy ("");
+	if (r) {
+		ArdourMessageDialog msg (*this, _("This file could not be used as a reference."), false, MESSAGE_ERROR);
+		msg.set_secondary_text (_("MusicDAWM reads WAV, FLAC, AIFF and Ogg files directly, and MP3 or M4A when FFmpeg is installed."));
+		msg.run ();
+	}
+	sync_listen ();
+}
+
+void
+FinalMixWindow::match_clicked ()
+{
+	if (!_model || !_model->reference_track ()) {
+		return;
+	}
+	busy (_("Analysing the mix..."));
+	FinalMix::Analysis const mix = _model->analyse_mix (sigc::mem_fun (*this, &FinalMixWindow::idle));
+	busy ("");
+	FinalMix::Match const m = _model->compute_match (mix, _model->reference_analysis ());
+	if (!m.valid) {
+		ArdourMessageDialog msg (*this, _("The mix or the reference could not be analysed (is the song silent?)."), false, MESSAGE_ERROR);
+		msg.run ();
+		return;
+	}
+	_model->apply_match (m);
+	sync_master ();
+	ArdourMessageDialog msg (*this, _("Matched to the reference"), false, MESSAGE_INFO);
+	msg.set_secondary_text (m.report + _("\nListen with After and Ref. Clear match goes back."));
+	msg.run ();
+}
+
+void
+FinalMixWindow::clear_match_clicked ()
+{
+	if (_model) {
+		_model->clear_match ();
+		sync_master ();
+	}
+}
+
+void
+FinalMixWindow::finalise_clicked ()
+{
+	if (!_model || !_session) {
+		return;
+	}
+	FileChooserDialog d (*this, _("Finalise Mix: where to save the song"), FILE_CHOOSER_ACTION_SAVE);
+	d.add_button (Stock::CANCEL, RESPONSE_CANCEL);
+	d.add_button (_("Finalise"), RESPONSE_OK);
+	d.set_current_folder (_session->session_directory ().export_path ());
+	d.set_current_name (_session->name () + X_(".wav"));
+	CheckButton mp3 (_("Also make an MP3"));
+	bool const  have_mp3 = FinalMix::mp3_available ();
+	mp3.set_active (have_mp3);
+	mp3.set_sensitive (have_mp3);
+	if (!have_mp3) {
+		set_tooltip (mp3, _("MP3 needs FFmpeg: install it in C:\\Program Files\\ffmpeg (see the user guide)."));
+	}
+	Label info (string_compose (_("The song is made %1 LUFS loud, with the true peaks under %2 dBTP."), _model->target_lufs (), _model->limiter_ceiling ()));
+	VBox  extra (false, 4);
+	extra.pack_start (info, false, false);
+	extra.pack_start (mp3, false, false);
+	extra.show_all ();
+	d.set_extra_widget (extra);
+	if (d.run () != RESPONSE_OK) {
+		return;
+	}
+	string folder = Glib::path_get_dirname (d.get_filename ());
+	string name   = Glib::path_get_basename (d.get_filename ());
+	if (name.size () > 4 && (name.compare (name.size () - 4, 4, ".wav") == 0 || name.compare (name.size () - 4, 4, ".WAV") == 0)) {
+		name = name.substr (0, name.size () - 4);
+	}
+	bool const want_mp3 = mp3.get_active ();
+	d.hide ();
+
+	busy (_("Finalising the mix..."));
+	FinalMix::Finalised const f = _model->finalise (folder, name, want_mp3, sigc::mem_fun (*this, &FinalMixWindow::idle));
+	busy ("");
+	if (!f.ok) {
+		ArdourMessageDialog msg (*this, _("Finalise Mix failed"), false, MESSAGE_ERROR);
+		msg.set_secondary_text (f.error);
+		msg.run ();
+		return;
+	}
+	string text = string_compose (_("%1\nLoudness %2 LUFS, true peak %3 dBTP."), f.wav, fmt1 (f.lufs), fmt1 (f.true_peak));
+	if (!f.mp3.empty ()) {
+		text += "\n" + f.mp3;
+	} else if (want_mp3) {
+		text += "\n" + string (_("No MP3: FFmpeg was not found."));
+	}
+	ArdourMessageDialog msg (*this, _("The song is finalised"), false, MESSAGE_INFO, BUTTONS_NONE);
+	msg.set_secondary_text (text);
+	msg.add_button (_("Open the folder"), RESPONSE_ACCEPT);
+	msg.add_button (Stock::OK, RESPONSE_OK);
+	if (msg.run () == RESPONSE_ACCEPT) {
+		PBD::open_folder (folder);
+	}
 }
 
 void

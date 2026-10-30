@@ -8,6 +8,8 @@
  * track from the mix (undoable), the master limiter.
  * M4: Starting mix (balance from measured loudness, pan, effects per genre
  * and role), Randomise FX, both undoable.
+ * M5: analysis, Before/After/Ref listening, Finalise Mix (export at the
+ * loudness target). R1: rule-based matching to a reference song.
  *
  * The x42 bundles must be on the LV2 path (LV2_PATH, or the program's own
  * LV2 folder in the Windows bundle).
@@ -27,6 +29,7 @@
 
 #include <glibmm/timer.h>
 
+#include <glibmm/fileutils.h>
 #include <glibmm/miscutils.h>
 
 #include "pbd/compose.h"
@@ -130,6 +133,38 @@ write_wav (string const& dir, string const& name, double seconds, F f)
 	for (samplecnt_t i = 0; i < n; ++i) {
 		float const x = f (i / double (SR));
 		fwrite (&x, 4, 1, fp);
+	}
+	fclose (fp);
+	return path;
+}
+
+/* a stereo WAV of two functions of time */
+template <typename F, typename G>
+static string
+write_wav2 (string const& dir, string const& name, double seconds, F fl, G fr)
+{
+	string const      path = Glib::build_filename (dir, name + ".wav");
+	samplecnt_t const n    = (samplecnt_t)(seconds * SR);
+	FILE*             fp   = fopen (path.c_str (), "wb");
+	auto              u32  = [fp] (uint32_t v) { fwrite (&v, 4, 1, fp); };
+	auto              u16  = [fp] (uint16_t v) { fwrite (&v, 2, 1, fp); };
+	fwrite ("RIFF", 1, 4, fp);
+	u32 (36 + n * 8);
+	fwrite ("WAVEfmt ", 1, 8, fp);
+	u32 (16);
+	u16 (3);
+	u16 (2);
+	u32 (SR);
+	u32 (SR * 8);
+	u16 (8);
+	u16 (32);
+	fwrite ("data", 1, 4, fp);
+	u32 (n * 8);
+	for (samplecnt_t i = 0; i < n; ++i) {
+		float const l = fl (i / double (SR));
+		float const r = fr (i / double (SR));
+		fwrite (&l, 4, 1, fp);
+		fwrite (&r, 4, 1, fp);
 	}
 	fclose (fp);
 	return path;
@@ -429,6 +464,103 @@ main (int argc, char* argv[])
 	       "randomise: new effect amounts, the faders stay");
 	s->undo (1);
 	check (fm.settings (vox).punch == sv.punch, "randomise: undo");
+
+	/* ---- M5: analysis ---- */
+	{
+		auto sine = [] (double hz, double a) { return [hz, a] (double t) { return float (a * sin (2 * M_PI * hz * t)); }; };
+		/* 1 kHz, 0.1 peak on both sides: -20 LUFS (the K-weighting is +0.69 dB at 1 kHz) */
+		FinalMix::Analysis const l = FinalMix::analyse_file (write_wav2 (dir, "an0", 4, sine (1000, 0.1), sine (1000, 0.1)));
+		check (l.valid && fabs (l.lufs + 20) < 0.3 && fabs (l.true_peak + 20) < 0.2, "analysis: loudness and true peak");
+		FinalMix::Analysis const a = FinalMix::analyse_file (write_wav2 (dir, "an1", 4, sine (2000, 0.1), sine (2000, 0.1)));
+		printf ("   2 kHz stereo: %.2f LUFS, peak %.2f, bands %.0f %.0f %.0f %.1f %.0f %.0f dB, width %.0f\n", a.lufs, a.true_peak,
+		        a.band_db[0], a.band_db[1], a.band_db[2], a.band_db[3], a.band_db[4], a.band_db[5], a.width_db);
+		check (a.valid && a.band_db[3] > -0.5 && a.band_db[1] < -20 && a.band_db[5] < -20 && a.width_db <= -200,
+		       "analysis: the 2 kHz tone is in the mids band, no width");
+		FinalMix::Analysis const w = FinalMix::analyse_file (write_wav2 (dir, "an2", 4, sine (2000, 0.1), [] (double) { return 0.f; }));
+		check (w.valid && fabs (w.width_db) < 0.1, "analysis: one-sided stereo is as wide as it is centred (side = mid)");
+	}
+
+	auto idle = [] () { Glib::usleep (50000); };
+
+	/* ---- M5: Before / After ---- */
+	float const vox_after = vox->gain_control ()->get_value ();
+	float const gl_pan    = gl->pan_azimuth_control ()->get_value ();
+	check (fm.set_listen (FinalMix::Before), "Before");
+	settle ();
+	float const master_before = accurate_coefficient_to_dB (s->master_out ()->gain_control ()->get_value ());
+	printf ("   Before: master %+.1f dB to match the mix\n", master_before);
+	check (vox->gain_control ()->get_value () == GAIN_COEFF_UNITY && fabs (gl->pan_azimuth_control ()->get_value () - 0.5) < 0.01 && !fm.fx_enabled ()
+	       && master_before < -3,
+	       "Before: faders 0 dB, pan centre, effects off, the master turned down to the mix's loudness");
+	check (fm.set_listen (FinalMix::After), "After");
+	settle ();
+	check (vox->gain_control ()->get_value () == vox_after && gl->pan_azimuth_control ()->get_value () == gl_pan && fm.fx_enabled ()
+	       && s->master_out ()->gain_control ()->get_value () == GAIN_COEFF_UNITY,
+	       "After: the mix is back exactly");
+
+	/* ---- M5: Finalise Mix ---- */
+	fm.set_target (FinalMix::Streaming);
+	fm.set_limiter_ceiling (-1);
+	string const out_dir = Glib::build_filename (dir, "final");
+	g_mkdir_with_parents (out_dir.c_str (), 0755);
+	FinalMix::Finalised const fin = fm.finalise (out_dir, "Song", false, idle);
+	printf ("   finalised: %s, %.2f LUFS, %.2f dBTP %s\n", fin.wav.c_str (), fin.lufs, fin.true_peak, fin.error.c_str ());
+	check (fin.ok && Glib::file_test (fin.wav, Glib::FILE_TEST_EXISTS) && fabs (fin.lufs + 14) < 0.7 && fin.true_peak <= -0.7,
+	       "Finalise Mix: a WAV at -14 LUFS, true peaks under -1 dBTP");
+
+	/* ---- R1: the reference ---- */
+	/* louder, brighter and wider than the mix */
+	string const refwav = write_wav2 (dir, "reference", 6,
+	                                  [] (double t) { return float (0.25 * sin (2 * M_PI * 2000 * t) + 0.15 * sin (2 * M_PI * 10000 * t) + 0.2 * sin (2 * M_PI * 100 * t)); },
+	                                  [] (double t) { return float (0.25 * sin (2 * M_PI * 2000 * t + 1) + 0.15 * sin (2 * M_PI * 10000 * t + 2) + 0.2 * sin (2 * M_PI * 100 * t)); });
+	check (fm.set_reference (refwav) == 0, "reference imported");
+	std::shared_ptr<Route> ref = fm.reference_track ();
+	FinalMix::Analysis const ra = fm.reference_analysis ();
+	printf ("   reference: %.1f LUFS, width %.1f dB\n", ra.lufs, ra.width_db);
+	std::vector<std::shared_ptr<Route>> const mix_tracks = fm.tracks ();
+	check (ref && ra.valid && std::none_of (mix_tracks.begin (), mix_tracks.end (), [&ref] (std::shared_ptr<Route> const& r) { return r == ref; }),
+	       "the reference track is not one of the mix's tracks");
+	check (ref && !ref->output ()->connected_to (s->master_out ()->input ()), "the reference does not go through the master bus");
+	settle ();
+	check (ref && ref->mute_control ()->muted_by_self (), "the reference is muted while listening to the mix");
+
+	FinalMix::Analysis const ma = fm.analyse_mix (idle);
+	printf ("   mix: %.1f LUFS, width %.1f dB\n", ma.lufs, ma.width_db);
+	check (ma.valid && ma.lufs > -40 && ma.lufs < -5, "the mix analysed from an export");
+
+	check (fm.set_listen (FinalMix::Ref), "Ref");
+	settle ();
+	float const ref_gain = accurate_coefficient_to_dB (ref->gain_control ()->get_value ());
+	printf ("   Ref: reference at %+.1f dB to match the mix\n", ref_gain);
+	check (ref->solo_control ()->self_soloed () && !ref->mute_control ()->muted_by_self () && fabs (ref_gain - (ma.lufs - ra.lufs)) < 0.2,
+	       "Ref: the reference alone, at the mix's loudness");
+	fm.set_listen (FinalMix::After);
+	settle ();
+	check (!ref->solo_control ()->self_soloed () && ref->mute_control ()->muted_by_self (), "back to the mix: the reference is silent");
+
+	FinalMix::Match const m = fm.compute_match (ma, ra);
+	printf ("   match: target %.1f LUFS, EQ %+.1f %+.1f %+.1f %+.1f %+.1f %+.1f dB\n%s", m.target_lufs, m.eq_db[0], m.eq_db[1], m.eq_db[2], m.eq_db[3], m.eq_db[4], m.eq_db[5], m.report.c_str ());
+	check (m.valid && fabs (m.target_lufs - roundf (ra.lufs * 2) / 2) < 0.01 && m.eq_db[5] > 0 && m.report.find ("wider") != string::npos,
+	       "R1: target from the reference, more air, advice on width");
+	fm.apply_match (m);
+	std::shared_ptr<Processor> match_eq, mlim;
+	size_t                     i_eq = 0, i_lim = 0, k = 0;
+	s->master_out ()->foreach_processor ([&] (std::weak_ptr<Processor> w) {
+		auto p = w.lock ();
+		if (p && p->name () == FinalMix::match_eq_name) {
+			match_eq = p;
+			i_eq     = k;
+		}
+		if (p && p->name () == FinalMix::limiter_name) {
+			mlim  = p;
+			i_lim = k;
+		}
+		++k;
+	});
+	check (match_eq && mlim && i_eq < i_lim && match_eq->active () && fm.target () == FinalMix::Custom && fm.target_lufs () == m.target_lufs,
+	       "R1 applied: master match EQ before the limiter, target set");
+	fm.clear_match ();
+	check (!match_eq->active () && fm.target () == FinalMix::Streaming, "R1 cleared: EQ off, the earlier target back");
 
 	s->save_state ("");
 	printf ("%s: %d failure(s)\n", failures ? "FAILED" : "PASSED", failures);

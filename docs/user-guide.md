@@ -69,6 +69,7 @@ The missing third-party plugins are a packaging choice for now, not a limitation
 | No sound | In the Audio/MIDI Setup dialog, try the **MME** driver instead of WASAPI, and check that the sample rate matches your device's setting in Windows Sound settings. |
 | Text or button labels look garbled or empty | MusicDAWM draws text through fontconfig. That was tested under Wine but not yet on real Windows. To try the Windows font system instead, start the program from a command prompt with `set PANGOCAIRO_BACKEND=win32` and then `bin\MusicDAWM.exe`, and report which one looks right. |
 | After an export, a window "Support Ardour Development" appears | That is Ardour's own request for donations: MusicDAWM is built on Ardour's work. Choose "Never ever ask me about this again" if you don't want to see it again. Nothing is sent anywhere. |
+| No MP3 option (Finalise Mix, export, reference songs) | MP3 needs the free FFmpeg program, which MusicDAWM does not ship. Download a Windows build of FFmpeg ("release essentials" from gyan.dev, for example) and copy `ffmpeg.exe` and `ffprobe.exe` (from its `bin` folder) directly into `C:\Program Files\ffmpeg\`; then restart MusicDAWM. WAV always works. |
 | A plugin crashes the program on start | Use **Safe Mode**: tick "Safe Mode: Disable all Plugins" in the session dialog, open the session, then remove the plugin. |
 
 **Reporting a problem:** use **Help → Report a Bug**, which opens the MusicDAWM issue page, and describe what you did, what you expected, and what happened. Please do not report MusicDAWM problems to the Ardour project: Ardour's developers cannot accept MusicDAWM's code (see `DECISIONS.md` D-010), and a problem may come from our changes rather than theirs. A problem you can also reproduce in stock Ardour 9.8 is fine to report to them in your own words.
@@ -240,7 +241,23 @@ The **Master** column on the right:
 - **Limiter ceiling**: changing it puts a limiter last on the master bus (the first time), which keeps the true peaks under that level; −1 dBTP is safe for streaming and MP3.
 - The master fader.
 
-Everything the window does is made of ordinary plug-ins and sends, named "Final Mix EQ", "Final Mix Punch", the "Final Mix Space" bus and "Final Mix Limiter", so the classic mixer shows them and they can be fine-tuned there.
+**Before / After / Ref** (top right) — to judge the mix with your ears, at the same loudness, because louder always sounds "better":
+- **After**: the mix.
+- **Before**: the tracks as recorded (faders at 0 dB, pan in the centre, no Final Mix effects), turned down or up to the loudness of the mix. The mix is kept and comes back with **After**; while **Before** is on, the mix's controls are greyed. Closing the window (or reopening the session) always returns to **After**.
+- **Ref**: the reference song alone (see below), at the loudness of the mix.
+
+**A reference song.** **Reference…** chooses a finished song you like, in the style you are aiming for (WAV, FLAC, AIFF or Ogg; MP3 and M4A when FFmpeg is installed). It is imported as a track called **Reference** that plays straight to your speakers, not through the master bus, so the mix's EQ and limiter do not colour it; it is silent except in **Ref**, and is never part of the export. A new reference replaces the old one.
+
+**Match to reference** (rule-based, nothing is sent anywhere) analyses the mix (a quick silent export) and the reference — loudness, peaks, the balance of six frequency bands (sub bass, bass, low mids, mids, presence, air) and the stereo width — and then:
+- sets the **loudness target** to the reference's (Custom);
+- puts a gentle **master EQ** ("Final Mix Match EQ", before the limiter) that moves the mix a little more than half way towards the reference's tonal balance, at most 4 dB per band;
+- tells you what it did and what to try by hand: wider or narrower panning, more or less Punch.
+
+Listen with **After** and **Ref**, adjust, and match again if you change a lot. **Clear match** switches the match EQ off and brings back the earlier target. **FX ON** also switches the match EQ.
+
+**Finalise Mix…** (bottom right) exports the song, from the session start to its end marker, as a 24-bit **WAV**, and as an **MP3** when FFmpeg is installed (see §5). It is made exactly as loud as the **Target**, with a true-peak limiter at the **Limiter ceiling**, so it is ready to upload. The dialog chooses the folder and name (by default the session's *export* folder); at the end it shows the measured loudness and peak and can open the folder.
+
+Everything the window does is made of ordinary plug-ins and sends, named "Final Mix EQ", "Final Mix Punch", the "Final Mix Space" bus, "Final Mix Match EQ" and "Final Mix Limiter", so the classic mixer shows them and they can be fine-tuned there.
 
 ### Freeze, limiter and EQ
 
@@ -261,7 +278,6 @@ None of these are available yet. Each work package adds its section to this guid
 | Feature | What it will do for you | Work package |
 |---|---|---|
 | Songwriter layout and start screen | Recording controls hidden; "New song from WAV files" imports your Zoom R8 tracks aligned in one step | WP2 |
-| Final Mix: Before/After and Finalise | Before/After listening at matched loudness, reference track, one-click export to WAV and MP3 at the loudness target | WP7 |
 | CLAP plugins | Load CLAP plugins such as Surge XT | WP8 |
 
 ## Appendix: command-line tools in `bin`

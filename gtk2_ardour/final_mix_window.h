@@ -68,6 +68,14 @@ private:
 	Gtk::ComboBoxText           _genre;
 	ArdourWidgets::ArdourButton _starting_mix;
 	ArdourWidgets::ArdourButton _randomise;
+	ArdourWidgets::ArdourButton _before;
+	ArdourWidgets::ArdourButton _after;
+	ArdourWidgets::ArdourButton _ref;
+	ArdourWidgets::ArdourButton _reference;
+	ArdourWidgets::ArdourButton _match;
+	ArdourWidgets::ArdourButton _clear_match;
+	ArdourWidgets::ArdourButton _finalise;
+	Gtk::Label                  _busy;
 	/* transport */
 	ArdourWidgets::ArdourButton _to_start;
 	ArdourWidgets::ArdourButton _play;
@@ -105,6 +113,14 @@ private:
 	void starting_mix_clicked ();
 	void randomise_clicked ();
 	void settings_changed ();
+	void listen_clicked (ARDOUR::FinalMix::Listen);
+	void sync_listen ();
+	void reference_clicked ();
+	void match_clicked ();
+	void clear_match_clicked ();
+	void finalise_clicked ();
+	void busy (std::string const&);
+	void idle ();
 	void add_tracks_clicked ();
 	void target_changed ();
 	void ceiling_changed ();

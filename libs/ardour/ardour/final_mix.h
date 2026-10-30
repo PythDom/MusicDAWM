@@ -24,6 +24,8 @@
 
 #pragma once
 
+#include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -129,6 +131,67 @@ public:
 	 * the centre of a stereo mix; <= -200: silent or no audio */
 	float track_loudness (std::shared_ptr<Route>) const;
 
+	/* ---- listening, analysis, reference, finalising (M5, R1) ---- */
+
+	enum { NumBands = 6 };
+	static std::string band_name (int);
+
+	/* what the analysis of a song or a track says */
+	struct Analysis {
+		bool   valid         = false;
+		float  lufs          = -200; /* integrated */
+		float  true_peak     = -200; /* dBTP */
+		float  band_db[NumBands] = { 0 }; /* energy of each band relative to the whole, dB */
+		float  width_db      = -200; /* side relative to mid, dB; -200: mono */
+		double seconds       = 0;
+	};
+	static Analysis analyse_file (std::string const& path);
+	Analysis        analyse_track (std::shared_ptr<Route>) const;
+
+	/* how the mix sounds now: exports the master to a temporary file
+	 * (calling idle () while the export runs) and analyses it */
+	Analysis analyse_mix (std::function<void()> idle);
+	Analysis last_mix_analysis () const;
+
+	/* Before: the tracks as recorded (faders 0 dB, pan centre, Final Mix
+	 * effects off) at the loudness of the mix; After: the mix; Ref: the
+	 * reference track alone, at the loudness of the mix. Before keeps the
+	 * mix in the session file and comes back to it when the session or
+	 * the window is opened again. */
+	enum Listen { After = 0, Before, Ref };
+	Listen listen () const;
+	bool   set_listen (Listen);
+
+	/* the reference song: imported as a track that plays straight to the
+	 * outputs (not through the master bus), muted except in Ref */
+	std::shared_ptr<Route> reference_track () const;
+	bool                   is_reference (std::shared_ptr<Route>) const;
+	int                    set_reference (std::string const& path); /* 0: done */
+	Analysis               reference_analysis () const;
+
+	/* R1: rule-based matching of the mix to the reference */
+	struct Match {
+		bool        valid = false;
+		float       target_lufs = -14;
+		float       eq_db[NumBands] = { 0 }; /* master EQ per band */
+		std::string report;                  /* what was done and what to try */
+	};
+	Match compute_match (Analysis const& mix, Analysis const& ref) const;
+	void  apply_match (Match const&);
+	void  clear_match ();
+	bool  matched () const;
+
+	/* Finalise Mix: the song to <folder>/<name>.wav (24 bit) and, when
+	 * FFmpeg is installed, <name>.mp3, normalised to the loudness target
+	 * with a true-peak limiter at the ceiling */
+	struct Finalised {
+		bool        ok = false;
+		std::string wav, mp3, error;
+		float       lufs = -200, true_peak = -200;
+	};
+	static bool mp3_available ();
+	Finalised   finalise (std::string const& folder, std::string const& name, bool mp3, std::function<void()> idle);
+
 	/* all Final Mix processors on or off (the settings are kept) */
 	bool fx_enabled () const;
 	void set_fx_enabled (bool);
@@ -152,6 +215,7 @@ public:
 	static char const* const punch_name;
 	static char const* const limiter_name;
 	static char const* const space_bus_name;
+	static char const* const match_eq_name;
 
 	class LIBARDOUR_API ExcludeCommand : public PBD::Command
 	{
@@ -189,7 +253,16 @@ public:
 private:
 	Session& _session;
 
+	/* track loudness, until the track's regions change */
+	mutable std::map<PBD::ID, std::pair<std::string, float>> _loudness_cache;
+	std::string region_signature (std::shared_ptr<Route>) const;
+	Analysis    analyse_track (std::shared_ptr<Route>, bool spectrum) const;
+
 	void commit_snapshot (std::string const& name, Snapshot const& before);
+	int  export_master (std::string const& folder, std::string const& name, bool wav, bool mp3, bool normalise, std::function<void()> idle);
+	float estimate_mix_lufs (bool before) const;
+	static XMLNode& snapshot_state (Snapshot const&, XMLNode&);
+	static Snapshot snapshot_from (XMLNode const&);
 
 	std::shared_ptr<PluginInsert> find_plugin (std::shared_ptr<Route>, char const* name) const;
 	std::shared_ptr<PluginInsert> make_plugin (std::shared_ptr<Route>, char const* name, std::string const& uri, bool pre_fader);
