@@ -391,6 +391,7 @@ children = [
         #'libs/plugins/a-vapor.lv2',
         # arch independent data
         'share/drumstudio',
+        'share/finalmix',
         'share/export',
         'share/media',
         'share/midi_maps',

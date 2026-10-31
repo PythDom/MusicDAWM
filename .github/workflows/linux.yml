@@ -15,6 +15,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # R5-light: the numpy decoding of the DiffVox presets (tools/diffvox)
+  # against DiffVox's own PyTorch model, CI only (D-047)
+  diffvox-presets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: DiffVox (pinned) and its Python dependencies
+        run: |
+          git clone -q https://github.com/SonyResearch/diffvox.git "$RUNNER_TEMP/diffvox"
+          git -C "$RUNNER_TEMP/diffvox" checkout -q 97ae464c758346a2b1474f533639135b114c0ce4
+          pip install -q torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install -q numpy pyyaml hydra-core torchcomp torch-fftconv numba
+      - name: Decoding check
+        run: python3 tools/diffvox/check_decode.py "$RUNNER_TEMP/diffvox"
   linux:
     runs-on: ubuntu-24.04
     timeout-minutes: 120

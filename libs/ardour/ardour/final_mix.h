@@ -57,6 +57,8 @@ public:
 		NumRoles
 	};
 
+	enum { NumBands = 6 }; /* analysis bands */
+
 	struct Settings {
 		Role  role          = Other;
 		bool  high_pass     = false;
@@ -64,9 +66,39 @@ public:
 		float brightness_db = 0;   /* high shelf at 6 kHz, -6..+6 dB */
 		float punch         = 0;   /* 0..1 */
 		float space         = 0;   /* 0..1 */
+		/* a vocal preset (R5, by name; empty: none). With a preset,
+		 * brightness is added to its high shelf, and punch scales its
+		 * compression (0.5: as the preset has it). */
+		std::string vocal_preset;
 
-		bool neutral () const { return !high_pass && brightness_db == 0 && punch == 0 && space == 0; }
+		bool neutral () const { return !high_pass && brightness_db == 0 && punch == 0 && space == 0 && vocal_preset.empty (); }
 	};
+
+	/* R5-light: vocal presets translated from DiffVox (share/finalmix/
+	 * vocal-presets.xml, made by tools/diffvox/convert_presets.py) */
+	struct VocalPreset {
+		std::string                  name;
+		std::string                  source;
+		std::map<std::string, float> eq;            /* x42-fil4 ports */
+		float                        threshold_18;  /* compressor threshold for a -18 LUFS vocal */
+		float                        ratio, attack, release, makeup;
+		float                        wet_db;        /* reverb energy relative to the dry vocal */
+		float                        t60;
+		float                        pan;           /* azimuth */
+		/* what DiffVox's own chain does to the test vocal (for the tests) */
+		float                        ref_lufs;
+		float                        ref_bands[NumBands];
+		std::vector<float>           ref_eq_db;     /* at 31 third-octave points from 20 Hz */
+	};
+	static std::vector<VocalPreset> const& vocal_presets ();
+	static VocalPreset const*             vocal_preset (std::string const& name);
+	static float                          vocal_test_gain (); /* the test vocal's scale to -18 LUFS */
+	/* sets the track's effects from the preset ("" for none), its Space
+	 * amount from the preset's reverb and punch to 0.5; one undo step */
+	void apply_vocal_preset (std::shared_ptr<Route>, std::string const& name);
+	/* the energy gain (dB) of the Space bus reverb, for a centred mono send
+	 * at 0 dB; measured in session_utils/final_mix_test.cc */
+	static float const space_bus_gain_db;
 
 	enum Genre {
 		Pop = 0,
@@ -133,7 +165,6 @@ public:
 
 	/* ---- listening, analysis, reference, finalising (M5, R1) ---- */
 
-	enum { NumBands = 6 };
 	static std::string band_name (int);
 
 	/* what the analysis of a song or a track says */

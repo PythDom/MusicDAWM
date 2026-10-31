@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <random>
+#include <sstream>
 
 #include <glib.h>
 #include <glib/gstdio.h>
@@ -20,6 +21,8 @@
 #include "pbd/basename.h"
 #include "pbd/compose.h"
 #include "pbd/error.h"
+#include "pbd/file_utils.h"
+#include "pbd/search_path.h"
 #include "pbd/xml++.h"
 
 #include "ardour/amp.h"
@@ -36,6 +39,7 @@
 #include "ardour/export_status.h"
 #include "ardour/export_timespan.h"
 #include "ardour/filesystem_paths.h"
+#include "ardour/search_paths.h"
 #include "ardour/import_status.h"
 #include "ardour/io.h"
 #include "ardour/final_mix.h"
@@ -344,6 +348,7 @@ FinalMix::settings (shared_ptr<Route> r) const
 		n->get_property (X_("brightness"), s.brightness_db);
 		n->get_property (X_("punch"), s.punch);
 		n->get_property (X_("space"), s.space);
+		n->get_property (X_("vocal-preset"), s.vocal_preset);
 	}
 	return s;
 }
@@ -430,34 +435,69 @@ FinalMix::set_settings (shared_ptr<Route> r, Settings const& s)
 	n->set_property (X_("brightness"), s.brightness_db);
 	n->set_property (X_("punch"), s.punch);
 	n->set_property (X_("space"), s.space);
+	n->set_property (X_("vocal-preset"), s.vocal_preset);
 
-	bool const fx = fx_enabled ();
+	bool const         fx = fx_enabled ();
+	VocalPreset const* vp = vocal_preset (s.vocal_preset);
 
-	/* EQ: high-pass and brightness */
-	bool const               want_eq = s.high_pass || s.brightness_db != 0;
+	/* EQ: high-pass and brightness, or the vocal preset's EQ */
+	bool const               want_eq = s.high_pass || s.brightness_db != 0 || vp;
 	shared_ptr<PluginInsert> eq      = find_plugin (r, eq_name);
 	if (want_eq && !eq) {
 		eq = make_plugin (r, eq_name, stereo_at_fader (r) ? X_("http://gareus.org/oss/lv2/fil4#stereo") : X_("http://gareus.org/oss/lv2/fil4#mono"), true);
 	}
 	if (eq) {
+		/* what a preset may have set, back to neutral */
+		for (char const* sec : { "sec1", "sec2", "sec3", "sec4", "LSsec", "LowPass" }) {
+			set_param (eq, sec, 0);
+		}
+		set_param (eq, "gain", 0);
+		if (vp) {
+			for (auto const& p : vp->eq) {
+				set_param (eq, p.first.c_str (), p.second);
+			}
+			auto hs = vp->eq.find ("HSgain");
+			set_param (eq, "HSgain", std::max (-18.f, std::min (18.f, (hs != vp->eq.end () ? hs->second : 0.f) + s.brightness_db)));
+			/* a negative make-up gain: fil4's output gain (the compressor's
+			 * make-up only goes up) */
+			set_param (eq, "gain", std::max (-20.f, std::min (0.f, vp->makeup)));
+		} else {
+			set_param (eq, "HSsec", 1);
+			set_param (eq, "HSfreq", 6000);
+			set_param (eq, "HSq", 0.7);
+			set_param (eq, "HSgain", s.brightness_db);
+		}
+		/* the high-pass is the panel's (a preset sets it when applied) */
 		set_param (eq, "HighPass", s.high_pass ? 1 : 0);
 		set_param (eq, "HPfreq", s.hp_freq);
 		set_param (eq, "HPQ", 0.7);
-		set_param (eq, "HSsec", 1);
-		set_param (eq, "HSfreq", 6000);
-		set_param (eq, "HSq", 0.7);
-		set_param (eq, "HSgain", s.brightness_db);
 		set_param (eq, "enable", 1);
 		set_active (eq, want_eq && fx);
 	}
 
 	/* punch: a gentle compressor whose attack lets the hits through */
-	bool const               want_punch = s.punch > 0;
+	bool const               want_punch = s.punch > 0 || vp;
 	shared_ptr<PluginInsert> comp       = find_plugin (r, punch_name);
 	if (want_punch && !comp) {
 		comp = make_plugin (r, punch_name, stereo_at_fader (r) ? X_("urn:ardour:a-comp#stereo") : X_("urn:ardour:a-comp"), true);
 	}
-	if (comp) {
+	if (comp && vp) {
+		/* DiffVox fitted its compressor on vocals at -18 LUFS: the
+		 * threshold follows this track's loudness. Punch 0.5 is the
+		 * preset's compression, 0 none, 1 twice as much. */
+		float l = track_loudness (r);
+		if (l <= -200) {
+			l = -18;
+		}
+		set_param (comp, "att", vp->attack);
+		set_param (comp, "rel", vp->release);
+		set_param (comp, "kn", 0);
+		set_param (comp, "rat", std::max (1.f, std::min (20.f, 1 + (vp->ratio - 1) * s.punch / 0.5f)));
+		set_param (comp, "thr", std::max (-60.f, std::min (0.f, vp->threshold_18 + (l + 18))));
+		set_param (comp, "mak", std::max (0.f, std::min (30.f, vp->makeup)));
+		set_param (comp, "enable", 1);
+		set_active (comp, want_punch && fx);
+	} else if (comp) {
 		set_param (comp, "att", 15);
 		set_param (comp, "rel", 80);
 		set_param (comp, "kn", 3);
@@ -884,6 +924,7 @@ FinalMix::snapshot_state (Snapshot const& v, XMLNode& c)
 		t->set_property (X_("brightness"), ts.settings.brightness_db);
 		t->set_property (X_("punch"), ts.settings.punch);
 		t->set_property (X_("space"), ts.settings.space);
+		t->set_property (X_("vocal-preset"), ts.settings.vocal_preset);
 	}
 	return c;
 }
@@ -907,6 +948,7 @@ FinalMix::snapshot_from (XMLNode const& c)
 		t->get_property (X_("brightness"), ts.settings.brightness_db);
 		t->get_property (X_("punch"), ts.settings.punch);
 		t->get_property (X_("space"), ts.settings.space);
+		t->get_property (X_("vocal-preset"), ts.settings.vocal_preset);
 		v.push_back (ts);
 	}
 	return v;
@@ -1683,4 +1725,136 @@ FinalMix::clear_match ()
 	n->set_property (X_("matched"), false);
 	_session.set_dirty ();
 	SettingsChanged (); /* EMIT SIGNAL */
+}
+
+/* ---- R5-light: vocal presets ---- */
+
+/* measured: final_mix_test prints it ("Space bus reverb gain") and checks
+ * that it still holds */
+float const FinalMix::space_bus_gain_db = -4.1f;
+
+namespace {
+
+struct VocalPresetLibrary {
+	bool                                 loaded = false;
+	float                                test_gain = 1;
+	std::vector<FinalMix::VocalPreset>   presets;
+};
+
+VocalPresetLibrary&
+library ()
+{
+	static VocalPresetLibrary lib;
+	if (lib.loaded) {
+		return lib;
+	}
+	lib.loaded = true;
+
+	string    file;
+	PBD::Searchpath sp (ardour_data_search_path ());
+	sp.add_subdirectory_to_paths (X_("finalmix"));
+	if (!PBD::find_file (sp, X_("vocal-presets.xml"), file)) {
+		/* a source tree (tests) */
+		string const dir = Glib::getenv (X_("MUSICDAWM_FINALMIX_DIR"));
+		file             = dir.empty () ? string () : Glib::build_filename (dir, X_("vocal-presets.xml"));
+	}
+	XMLTree tree;
+	if (file.empty () || !Glib::file_test (file, Glib::FILE_TEST_EXISTS) || !tree.read (file)) {
+		PBD::warning << _("Final Mix: the vocal presets were not found") << endmsg;
+		return lib;
+	}
+	tree.root ()->get_property (X_("test-gain"), lib.test_gain);
+	for (auto const& n : tree.root ()->children (X_("Preset"))) {
+		FinalMix::VocalPreset p;
+		n->get_property (X_("name"), p.name);
+		n->get_property (X_("source"), p.source);
+		if (XMLNode const* eq = n->child (X_("EQ"))) {
+			for (auto const& a : eq->properties ()) {
+				p.eq[a->name ()] = PBD::string_to<float> (a->value ());
+			}
+		}
+		XMLNode const* c = n->child (X_("Compressor"));
+		XMLNode const* r = n->child (X_("Reverb"));
+		XMLNode const* f = n->child (X_("Reference"));
+		XMLNode const* a = n->child (X_("Pan"));
+		if (!c || !r || !f || !a) {
+			continue;
+		}
+		c->get_property (X_("threshold-at-18"), p.threshold_18);
+		c->get_property (X_("ratio"), p.ratio);
+		c->get_property (X_("attack"), p.attack);
+		c->get_property (X_("release"), p.release);
+		c->get_property (X_("makeup"), p.makeup);
+		r->get_property (X_("wet-db"), p.wet_db);
+		r->get_property (X_("t60"), p.t60);
+		a->get_property (X_("azimuth"), p.pan);
+		f->get_property (X_("lufs"), p.ref_lufs);
+		string bands, eqdb;
+		f->get_property (X_("bands"), bands);
+		f->get_property (X_("eq-db"), eqdb);
+		std::istringstream bs (bands);
+		for (int b = 0; b < FinalMix::NumBands; ++b) {
+			bs >> p.ref_bands[b];
+		}
+		std::istringstream es (eqdb);
+		for (float v; es >> v;) {
+			p.ref_eq_db.push_back (v);
+		}
+		lib.presets.push_back (p);
+	}
+	return lib;
+}
+
+} // namespace
+
+std::vector<FinalMix::VocalPreset> const&
+FinalMix::vocal_presets ()
+{
+	return library ().presets;
+}
+
+FinalMix::VocalPreset const*
+FinalMix::vocal_preset (string const& name)
+{
+	if (name.empty ()) {
+		return 0;
+	}
+	for (auto const& p : vocal_presets ()) {
+		if (p.name == name) {
+			return &p;
+		}
+	}
+	return 0;
+}
+
+float
+FinalMix::vocal_test_gain ()
+{
+	return library ().test_gain;
+}
+
+void
+FinalMix::apply_vocal_preset (shared_ptr<Route> r, string const& name)
+{
+	Snapshot const     before = snapshot ();
+	Settings           s      = settings (r);
+	VocalPreset const* vp     = vocal_preset (name);
+	s.vocal_preset            = vp ? name : string ();
+	if (vp) {
+		auto hp = vp->eq.find ("HighPass");
+		auto hf = vp->eq.find ("HPfreq");
+		s.high_pass     = hp != vp->eq.end () && hp->second > 0;
+		s.hp_freq       = hf != vp->eq.end () ? hf->second : default_hp_freq (s.role);
+		s.brightness_db = 0;
+		s.punch         = 0.5;
+		/* the reverb's level through the Space send (-24 .. 0 dB) */
+		s.space = std::max (0.f, std::min (1.f, (vp->wet_db - space_bus_gain_db + 24) / 24));
+		if (shared_ptr<AutomationControl> pan = r->pan_azimuth_control ()) {
+			pan->set_value (vp->pan, PBD::Controllable::NoGroup);
+		}
+	} else {
+		s.punch = 0;
+	}
+	set_settings (r, s);
+	commit_snapshot (vp ? string_compose (_("vocal preset %1"), name) : string (_("no vocal preset")), before);
 }

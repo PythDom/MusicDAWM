@@ -101,13 +101,24 @@ public:
 		_punch.signal_format_value ().connect ([] (double v) { return string_compose ("%1 %%", (int)v); });
 		_space.signal_format_value ().connect ([] (double v) { return string_compose ("%1 %%", (int)v); });
 
-		Table* t   = manage (new Table (6, 2));
+		_preset.append_text (_("None"));
+		for (auto const& vp : FinalMix::vocal_presets ()) {
+			_preset.append_text (vp.name);
+		}
+
+		Table* t   = manage (new Table (7, 2));
 		int    row = 0;
 		t->set_spacings (6);
 		t->set_border_width (10);
 		auto label = [] (string const& s) { return manage (new Label (s, 1.0, 0.5)); };
 		t->attach (*label (_("Role:")), 0, 1, row, row + 1, FILL, SHRINK);
 		t->attach (_role, 1, 2, row, row + 1, FILL, SHRINK);
+		++row;
+		t->attach (_preset_label, 0, 1, row, row + 1, FILL, SHRINK);
+		t->attach (_preset, 1, 2, row, row + 1, FILL, SHRINK);
+		_preset_label.set_alignment (1.0, 0.5);
+		_preset.set_no_show_all (true);
+		_preset_label.set_no_show_all (true);
 		++row;
 		t->attach (_high_pass, 0, 1, row, row + 1, FILL, SHRINK);
 		t->attach (_hp_freq, 1, 2, row, row + 1, FILL, SHRINK);
@@ -126,9 +137,12 @@ public:
 		set_tooltip (_bright, _("A gentle lift (or cut) of the highs above about 6 kHz: more air and presence, or less harshness."));
 		set_tooltip (_punch, _("Compression that evens out the level while letting the attacks through. 0 % is off."));
 		set_tooltip (_space, _("How much of the track goes to the shared reverb. 0 % is dry."));
+		set_tooltip (_preset, _("A vocal sound from a professional mix (DiffVox's analysis of hundreds of mixed vocals): EQ, compression and reverb amount. "
+		                        "Brightness, Punch and Space then work from it: Punch 50 % is the preset's compression. Edit > Undo goes back."));
 
 		load ();
 		_role.signal_changed ().connect (sigc::mem_fun (*this, &FinalMixFxWindow::changed));
+		_preset.signal_changed ().connect (sigc::mem_fun (*this, &FinalMixFxWindow::preset_changed));
 		_high_pass.signal_toggled ().connect (sigc::mem_fun (*this, &FinalMixFxWindow::changed));
 		for (Adjustment* a : { &_hp_adj, &_bright_adj, &_punch_adj, &_space_adj }) {
 			a->signal_value_changed ().connect (sigc::mem_fun (*this, &FinalMixFxWindow::changed));
@@ -151,6 +165,17 @@ public:
 		_punch_adj.set_value (s.punch * 100);
 		_space_adj.set_value (s.space * 100);
 		_hp_freq.set_sensitive (s.high_pass);
+		/* vocal presets: for vocals and backing vocals */
+		bool const vocal = s.role == FinalMix::Vocals || s.role == FinalMix::BackingVocals || !s.vocal_preset.empty ();
+		_preset.set_visible (vocal && !FinalMix::vocal_presets ().empty ());
+		_preset_label.set_visible (vocal && !FinalMix::vocal_presets ().empty ());
+		int active = 0;
+		for (size_t i = 0; i < FinalMix::vocal_presets ().size (); ++i) {
+			if (FinalMix::vocal_presets ()[i].name == s.vocal_preset) {
+				active = i + 1;
+			}
+		}
+		_preset.set_active (active);
 		_ignore = false;
 	}
 
@@ -158,10 +183,23 @@ private:
 	FinalMixWindow&   _window;
 	shared_ptr<Route> _route;
 	ComboBoxText      _role;
+	Label             _preset_label { _("Vocal preset:") };
+	ComboBoxText      _preset;
 	CheckButton       _high_pass;
 	Adjustment        _hp_adj, _bright_adj, _punch_adj, _space_adj;
 	HScale            _hp_freq, _bright, _punch, _space;
 	bool              _ignore = false;
+
+	void preset_changed ()
+	{
+		FinalMix* m = _window.model ();
+		if (_ignore || !m) {
+			return;
+		}
+		int const i = _preset.get_active_row_number ();
+		m->apply_vocal_preset (_route, i > 0 ? FinalMix::vocal_presets ()[i - 1].name : string ());
+		load ();
+	}
 
 	void changed ()
 	{
@@ -187,6 +225,7 @@ private:
 		_hp_freq.set_sensitive (s.high_pass);
 		m->set_settings (_route, s);
 		if (regroup) {
+			load ();
 			_window.queue_rebuild ();
 		}
 	}

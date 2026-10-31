@@ -242,6 +242,12 @@ It is a starting point to listen to and adjust, not a finished mix: set the role
 
 Tracks are measured as recorded (with clip gain), before their own plug-ins; Drum Studio (MIDI) tracks keep their fader and only get pan and effects.
 
+**Vocal presets.** For a track whose role is **Vocals** or **Backing vocals**, the FX panel has a **Vocal preset** menu with 10 vocal sounds taken from professional mixes: the DiffVox research project (Sony and Queen Mary University of London) measured the effects used on hundreds of mixed vocals, and MusicDAWM picked 10 typical ones and rebuilt them with its own effects (EQ, compressor, reverb amount; no delay). Their names say what they do, for example *Bright, present, smooth, lots of reverb*, *Warm, smooth, lots of reverb*, *Very punchy, some reverb* or *Natural, dry*.
+- Choosing a preset sets the track's EQ, compression and Space (reverb) amount, and its high-pass. **None** goes back to the plain tools; **Edit → Undo** too.
+- The panel's controls then work from the preset: **Brightness** adds to (or takes from) the preset's highs, **Punch** at 50 % is the preset's compression (0 % none, 100 % twice as much), **Space** starts at the preset's reverb amount.
+- The compression adapts to how loud your recording is, so a preset works the same on a quiet and on a loud take.
+- The reverb is the shared Space reverb: a preset sets how much reverb, not which room.
+
 The **Master** column on the right:
 - The **loudness** of the song while it plays, in LUFS (the unit streaming services use): the big figure is the whole playback so far, **Now** the last moment, **Peak** the highest true peak. Each new playback starts a new measurement (**Restart** does it by hand).
 - **Target**: **Streaming (−14 LUFS)**, **Loud (−9 LUFS)** or **Custom**. The column says how far the song is from it.

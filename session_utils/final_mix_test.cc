@@ -629,6 +629,155 @@ main (int argc, char* argv[])
 	fm.clear_match ();
 	check (!match_eq->active () && fm.target () == FinalMix::Streaming, "R1 cleared: EQ off, the earlier target back");
 
+	/* ---- R5-light: vocal presets ---- */
+	{
+		vector<FinalMix::VocalPreset> const& vps = FinalMix::vocal_presets ();
+		check (vps.size () >= 8, string_compose ("vocal presets loaded (%1)", vps.size ()));
+
+		/* the test vocal of tools/diffvox/convert_presets.py, at -18 LUFS */
+		double const tg    = FinalMix::vocal_test_gain ();
+		auto         vocal = [tg] (double seconds, double tail) {
+			vector<float> x ((size_t)((seconds + tail) * SR), 0.f);
+			double        ph = 0;
+			for (samplecnt_t n = 0; n < (samplecnt_t)(seconds * SR); ++n) {
+				double const t  = n / double (SR);
+				double const f0 = 196 * (1 + 0.12 * sin (2 * M_PI * 0.31 * t) + 0.03 * sin (2 * M_PI * 5.5 * t));
+				ph += 2 * M_PI * f0 / SR;
+				double v = 0;
+				for (int k = 1; k < 25; ++k) {
+					double const fk  = 196.0 * k;
+					double const amp = (1.0 / k) * (1 + 2.5 * exp (-pow ((fk - 700) / 300, 2)) + 1.5 * exp (-pow ((fk - 2600) / 500, 2)));
+					v += amp * sin (k * ph);
+				}
+				double const syl  = 0.5 * (1 - cos (2 * M_PI * 4 * t));
+				double const loud = pow (10, (-6 + 6 * sin (2 * M_PI * 0.23 * t + 1)) / 20);
+				double const gate = sin (2 * M_PI * 0.5 * t) > -0.85 ? 1 : 0;
+				x[n]              = float (v * syl * loud * gate * tg);
+			}
+			return x;
+		};
+		vector<float> const vx  = vocal (8, 0);
+		string const        vwav = write_wav (dir, "testvocal", 8, [&vx] (double t) { return vx[std::min (vx.size () - 1, (size_t)(t * SR))]; });
+		FinalMix::Analysis const dry = FinalMix::analyse_file (vwav);
+		printf ("   test vocal: %.2f LUFS (centred)\n", dry.lufs);
+		check (fabs (dry.lufs + 18) < 0.3, "the test vocal is the converter's (-18 LUFS)");
+
+		/* the Space bus reverb's gain for a centred mono send at 0 dB */
+		{
+			vector<float> const vt  = vocal (8, 4);
+			string const        sw  = write_wav2 (dir, "vocal-st", 12, [&vt] (double t) { return float (M_SQRT1_2 * vt[std::min (vt.size () - 1, (size_t)(t * SR))]); },
+			                                      [&vt] (double t) { return float (M_SQRT1_2 * vt[std::min (vt.size () - 1, (size_t)(t * SR))]); });
+			PluginPtr rv = load_lv2 (*s, "urn:ardour:a-reverb");
+			std::shared_ptr<AudioSource> sl = std::dynamic_pointer_cast<AudioSource> (SourceFactory::createExternal (DataType::AUDIO, *s, sw, 0, Source::Flag (0), true, false));
+			std::shared_ptr<AudioSource> sr = std::dynamic_pointer_cast<AudioSource> (SourceFactory::createExternal (DataType::AUDIO, *s, sw, 1, Source::Flag (0), true, false));
+			SourceList                   srcs = { sl, sr };
+			PBD::PropertyList            pl;
+			pl.add (Properties::start, timepos_t (Temporal::AudioTime));
+			pl.add (Properties::length, sl->length ());
+			pl.add (Properties::name, string ("vocal-st"));
+			pl.add (Properties::whole_file, true);
+			std::shared_ptr<AudioRegion>    whole = std::dynamic_pointer_cast<AudioRegion> (RegionFactory::create (srcs, pl));
+			std::shared_ptr<AudioRegion>    rr    = std::dynamic_pointer_cast<AudioRegion> (RegionFactory::create (whole, false));
+			std::shared_ptr<AudioTrack>     st    = s->new_audio_track (2, 2, 0, 1, "Reverb probe", PresentationInfo::max_order, Normal, true).front ();
+			st->input ()->disconnect ();
+			st->playlist ()->add_region (rr, timepos_t (Temporal::AudioTime));
+			std::shared_ptr<RegionFxPlugin> fx (new RegionFxPlugin (*s, Temporal::AudioTime, rv));
+			rr->add_plugin (fx);
+			set_param (fx, rv, "blend", 1.0);
+			set_param (fx, rv, "roomsz", 0.6);
+			double ew = 0, ed = 0;
+			for (uint32_t c = 0; c < 2; ++c) {
+				vector<Sample> buf (12 * SR), mix (12 * SR);
+				vector<gain_t> g (12 * SR);
+				rr->read_at (buf.data (), mix.data (), g.data (), 0, 12 * SR, c);
+				for (auto v : buf) {
+					ew += v * v;
+				}
+			}
+			for (auto v : vt) {
+				ed += v * v;
+			}
+			s->remove_route (st);
+			double const gain_db = 10 * log10 (ew / ed);
+			printf ("   Space bus reverb gain: %.2f dB (FinalMix::space_bus_gain_db = %.2f)\n", gain_db, FinalMix::space_bus_gain_db);
+			check (fabs (gain_db - FinalMix::space_bus_gain_db) < 1, "the Space bus reverb gain is the one the presets use");
+		}
+
+		/* each preset through MusicDAWM's chain */
+		for (auto const& r : fm.tracks ()) {
+			fm.set_excluded (r, true);
+		}
+		std::shared_ptr<AudioTrack> vt;
+		add_track (*s, "Vocal test", vwav, &vt);
+		settle ();
+		int n_ok = 0;
+		for (auto const& vp : vps) {
+			/* EQ: fil4 with the preset's settings, measured at the 31 points */
+			vector<double> hz;
+			for (int k = 0; k < 31; ++k) {
+				hz.push_back (20 * pow (2, k / 3.0));
+			}
+			string const ms = write_wav (dir, "multisine", 3, [&hz] (double t) {
+				double v = 0;
+				for (size_t k = 0; k < hz.size (); ++k) {
+					v += 0.02 * sin (2 * M_PI * hz[k] * t + k * k * 0.7);
+				}
+				return float (v);
+			});
+			std::shared_ptr<AudioRegion>    er  = add_track (*s, "EQ probe", ms);
+			vector<Sample> const            in  = render (er, 3 * SR);
+			PluginPtr                       f4  = load_lv2 (*s, FIL4_MONO);
+			std::shared_ptr<RegionFxPlugin> efx (new RegionFxPlugin (*s, Temporal::AudioTime, f4));
+			er->add_plugin (efx);
+			for (auto const& p : vp.eq) {
+				set_param (efx, f4, p.first, p.second);
+			}
+			set_param (efx, f4, "enable", 1);
+			vector<Sample> const out    = render (er, 3 * SR);
+			double               eq_err = 0, eq_at = 0;
+			for (size_t k = 0; k < hz.size () && k < vp.ref_eq_db.size (); ++k) {
+				/* 30 Hz - 16 kHz; not in deep cuts (more than 20 dB down),
+				 * where the measurement picks up its neighbours */
+				if (hz[k] < 30 || hz[k] > 16000 || vp.ref_eq_db[k] < -20) {
+					continue;
+				}
+				double const e = fabs ((level_at (out, hz[k], SR) - level_at (in, hz[k], SR)) - vp.ref_eq_db[k]);
+				if (e > eq_err) {
+					eq_err = e;
+					eq_at  = hz[k];
+				}
+			}
+			s->remove_route (s->route_by_name ("EQ probe"));
+
+			/* the whole preset on the vocal track (no reverb), exported */
+			fm.apply_vocal_preset (vt, vp.name);
+			FinalMix::Settings st = fm.settings (vt);
+			float const        space = st.space;
+			st.space              = 0;
+			fm.set_settings (vt, st);
+			settle ();
+			FinalMix::Analysis const a = fm.analyse_mix (idle);
+			double                   band_err = 0;
+			for (int b = 1; b < FinalMix::NumBands; ++b) { /* the sub band carries almost nothing */
+				band_err = std::max (band_err, (double)fabs (a.band_db[b] - vp.ref_bands[b]));
+			}
+			double const ours_wet = -24 + 24 * space + FinalMix::space_bus_gain_db;
+			bool const   ok       = eq_err < 1.5 && fabs (a.lufs - vp.ref_lufs) < 1 && band_err < 1.5 && fabs (ours_wet - vp.wet_db) < 3;
+			n_ok += ok;
+			printf ("   %-40s EQ %.1f dB (at %.0f Hz), loudness %+.1f LU, bands %.1f dB, reverb %+.1f dB %s\n", vp.name.c_str (), eq_err, eq_at, a.lufs - vp.ref_lufs,
+			        band_err, ours_wet - vp.wet_db, ok ? "" : "<-- off");
+		}
+		check (n_ok == (int)vps.size (), string_compose ("every vocal preset matches DiffVox (%1 of %2)", n_ok, vps.size ()));
+
+		/* apply and undo */
+		fm.apply_vocal_preset (vt, vps.front ().name);
+		check (fm.settings (vt).vocal_preset == vps.front ().name, "a vocal preset applied");
+		fm.apply_vocal_preset (vt, "");
+		check (fm.settings (vt).vocal_preset.empty (), "no vocal preset");
+		s->undo (1);
+		check (fm.settings (vt).vocal_preset == vps.front ().name, "undo brings the preset back");
+	}
+
 	s->save_state ("");
 	printf ("%s: %d failure(s)\n", failures ? "FAILED" : "PASSED", failures);
 	fflush (stdout);
