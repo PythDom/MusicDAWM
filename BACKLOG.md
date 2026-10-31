@@ -4,7 +4,7 @@ Work agreed with the user but deliberately left for later. Each item says what i
 
 | # | Item | Origin | Status |
 |---|---|---|---|
-| B-1 | **Tap Tempo Map: extrapolate a tapped passage to the whole song** (below) | User, 2026-10-31 | To be made later (D-045) |
+| B-1 | **Tap Tempo Map: extrapolate a tapped passage to the whole song** (below) | User, 2026-10-31 | **Done** 2026-10-31 (D-046, `reports/WP4.md`) |
 | B-2 | Reference matching R2–R4 (learned matching, Python/PyTorch module, ST-ITO, AFx-Rep) | D-038 | Postponed |
 | B-3 | WP8: CLAP plug-ins | D-038 | Postponed |
 | B-4 | Melodyne / ARA: pitch edits not heard, crashes; diagnostic plan in `reports/WP9.md` | D-037 | On hold |

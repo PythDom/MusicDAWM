@@ -291,6 +291,42 @@ TapTempo::apply (TempoMap& map, vector<samplepos_t> const& taps, samplecnt_t sr,
 		return false;
 	}
 
+	/* keep_outside: what the map was before and after the passage */
+	struct OldTempo {
+		samplepos_t pos;
+		double      npm;
+		int         note_value;
+	};
+	vector<OldTempo>  before, after;
+	int               old_div     = 4;
+	int               beat_in_bar = 0;
+	Temporal::Meter*  old_meter   = 0;
+	samplepos_t const pass_end = taps.back ();
+	if (opt.keep_outside) {
+		for (auto const& p : map.tempos ()) {
+			samplepos_t const pos = superclock_to_samples (p.sclock (), sr);
+			OldTempo const    t   = { pos, p.note_types_per_minute (), p.note_type () };
+			if (pos < taps.front ()) {
+				before.push_back (t);
+			} else if (pos > pass_end) {
+				after.push_back (t);
+			}
+		}
+		/* the tempo in force at the end of the passage comes back after it */
+		TempoPoint const& at_end = map.tempo_at (timepos_t (pass_end));
+		if (after.empty () || after.front ().pos > pass_end + 1) {
+			after.insert (after.begin (), OldTempo { pass_end, at_end.note_types_per_minute (), at_end.note_type () });
+		}
+		/* where the last tempo before the passage is in its bar, and the
+		 * old meter (kept) */
+		if (!before.empty ()) {
+			BBT_Time const b = map.bbt_at (timepos_t (before.back ().pos));
+			old_div          = map.meter_at (timepos_t (before.back ().pos)).divisions_per_bar ();
+			beat_in_bar      = b.beats - 1;
+		}
+		old_meter = new Temporal::Meter (map.meter_at (timepos_t (AudioTime)));
+	}
+
 	/* start from a clean map: one tempo, one meter */
 	{
 		vector<MusicTimePoint const*> bt;
@@ -321,7 +357,46 @@ TapTempo::apply (TempoMap& map, vector<samplepos_t> const& taps, samplecnt_t sr,
 	}
 
 	Temporal::Meter const meter (opt.divisions_per_bar, opt.note_value);
-	map.set_meter (meter, timepos_t (AudioTime));
+	map.set_meter (old_meter ? *old_meter : meter, timepos_t (AudioTime));
+	delete old_meter;
+
+	if (opt.keep_outside && !before.empty ()) {
+		/* the old tempos before the passage; the last one is adjusted so
+		 * that a whole number of bars ends on the first tap: the passage
+		 * starts on beat 1, with no BBT marker (which would re-place the
+		 * points after it by beats) */
+		OldTempo& last = before.back ();
+		if (taps.front () > last.pos) {
+			double const span = taps.front () - last.pos;
+			double const beat = 60.0 * sr / last.npm;
+			int const    rest = (old_div - beat_in_bar) % old_div; /* beats to the next bar */
+			int const    k    = std::max (0, (int)std::lround ((span / beat - rest) / old_div));
+			int          n    = rest + k * old_div;
+			if (n == 0) {
+				n = old_div;
+			}
+			last.npm = n * 60.0 * sr / span;
+		}
+		for (auto const& t : before) {
+			map.set_tempo (Tempo (t.npm, t.note_value), timepos_t (t.pos));
+		}
+		for (size_t i = 0; i + 1 < taps.size (); ++i) {
+			map.set_tempo (Tempo (tempo_for (taps[i + 1] - taps[i], sr, opt), opt.note_value), timepos_t (taps[i]));
+		}
+		/* after it, the old tempos at their old places; the bars number
+		 * on. Tempo points sit on beats: the tempo resuming after the
+		 * passage is adjusted so that a whole number of beats ends on the
+		 * next old point. */
+		if (after.size () > 1 && after[1].pos > after[0].pos) {
+			double const span = after[1].pos - after[0].pos;
+			double const n    = std::max (1.0, std::round (span / (60.0 * sr / after[0].npm)));
+			after[0].npm      = n * 60.0 * sr / span;
+		}
+		for (auto const& t : after) {
+			map.set_tempo (Tempo (t.npm, t.note_value), timepos_t (t.pos));
+		}
+		return true;
+	}
 
 	/* Before the first tap (count-in, silence): close to the first
 	 * interval's tempo, but such that the first tap falls exactly on a
@@ -343,4 +418,130 @@ TapTempo::apply (TempoMap& map, vector<samplepos_t> const& taps, samplecnt_t sr,
 		map.set_tempo (Tempo (npm, opt.note_value), timepos_t (taps[i]));
 	}
 	return true;
+}
+
+vector<samplepos_t>
+TapTempo::extend (vector<samplepos_t> const& taps, Options const& opt, vector<samplepos_t> const& onsets,
+                  samplepos_t start, samplepos_t end, samplecnt_t sr, Report& rep)
+{
+	if (taps.size () < 2) {
+		return taps;
+	}
+	int const per_tap = opt.unit == Bars ? std::max (1, opt.divisions_per_bar) : 1; /* beats per tap */
+
+	/* the tempo of the nearest (up to) 16 tapped intervals, at either end */
+	size_t const n_int = std::min<size_t> (16, taps.size () - 1);
+	double const p_end = (taps.back () - taps[taps.size () - 1 - n_int]) / double (n_int);
+	double const p_beg = (taps[n_int] - taps.front ()) / double (n_int);
+
+	/* follow from tap t with period p, in direction dir (+1 forward, -1
+	 * backward), until the limit */
+	bool const tracking = !onsets.empty ();
+	auto follow = [&] (samplepos_t t, double p, double slope, int dir, samplepos_t limit, vector<samplepos_t>& out) {
+		double const        p0        = p;
+		int                 misses    = 0;
+		samplepos_t         miss_from = 0;
+		size_t              last_hit  = 0; /* beats in out up to the last hit */
+		vector<double>      periods;       /* recent intervals between hits */
+		vector<std::pair<samplepos_t, samplepos_t>> unsure;
+		for (;;) {
+			double const pred = t + dir * p;
+			if ((dir > 0 && pred >= limit) || (dir < 0 && pred < limit)) {
+				break;
+			}
+			/* hits within 15 % of a beat (25 % after a miss, to catch up):
+			 * eighths and sixteenths stay outside */
+			double const beat = p / per_tap;
+			double const w    = (misses ? 0.25 : 0.15) * beat;
+			samplepos_t  hit  = -1;
+			if (!onsets.empty ()) {
+				auto it = std::lower_bound (onsets.begin (), onsets.end (), (samplepos_t)std::llround (pred - w));
+				double best = w;
+				for (; it != onsets.end () && *it <= pred + w; ++it) {
+					if (std::fabs (*it - pred) <= best) {
+						best = std::fabs (*it - pred);
+						hit  = *it;
+					}
+				}
+			}
+			samplepos_t next;
+			if (hit >= 0) {
+				next = hit;
+				/* the tempo follows a quarter of the error, within ±25 % */
+				double const interval = dir * (next - t);
+				p                     = std::max (0.75 * p0, std::min (1.25 * p0, p + 0.25 * (interval - p)));
+				/* the trend of the tempo (per beat), over the last 16 hits,
+				 * carries the grid through breaks */
+				if (!misses) {
+					periods.push_back (interval);
+					if (periods.size () > 16) {
+						periods.erase (periods.begin ());
+					}
+					if (periods.size () >= 8) {
+						double const n = periods.size ();
+						double       sx = 0, sy = 0, sxy = 0, sxx = 0;
+						for (size_t k = 0; k < periods.size (); ++k) {
+							sx += k;
+							sy += periods[k];
+							sxy += k * periods[k];
+							sxx += double (k) * k;
+						}
+						slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+					}
+				}
+				++rep.followed;
+				if (misses >= 2) {
+					unsure.push_back (std::make_pair (std::min (miss_from, next), std::max (miss_from, next)));
+				}
+				misses = 0;
+				out.push_back (next);
+				last_hit = out.size ();
+			} else {
+				next = (samplepos_t)std::llround (pred);
+				if (misses++ == 0) {
+					miss_from = t;
+				}
+				out.push_back (next);
+				p = std::max (0.75 * p0, std::min (1.25 * p0, p + slope));
+			}
+			t = next;
+		}
+		if (tracking) {
+			/* nothing to follow before the first or after the last hit (the
+			 * count-in, the end of the song): the map's tempo carries on */
+			out.resize (last_hit);
+			rep.unsure.insert (rep.unsure.end (), unsure.begin (), unsure.end ());
+		}
+	};
+
+	/* the trend of the tapped tempo at either end (per beat) */
+	auto trend = [&] (size_t from) {
+		double n = 0, sx = 0, sy = 0, sxy = 0, sxx = 0;
+		for (size_t k = 0; k < n_int; ++k, ++n) {
+			double const y = taps[from + k + 1] - taps[from + k];
+			sx += k;
+			sy += y;
+			sxy += k * y;
+			sxx += double (k) * k;
+		}
+		return n >= 8 ? (n * sxy - sx * sy) / (n * sxx - sx * sx) : 0.0;
+	};
+
+	vector<samplepos_t> after, before;
+	follow (taps.back (), p_end, trend (taps.size () - 1 - n_int), 1, end, after);
+	follow (taps.front (), p_beg, -trend (0), -1, start, before);
+
+	/* the first tap stays a bar start: keep whole bars before it */
+	if (opt.unit == Beats) {
+		size_t const bar = std::max (1, opt.divisions_per_bar);
+		before.resize ((before.size () / bar) * bar);
+	}
+	rep.extended_before = before.size ();
+	rep.extended_after  = after.size ();
+
+	vector<samplepos_t> all (before.rbegin (), before.rend ());
+	all.insert (all.end (), taps.begin (), taps.end ());
+	all.insert (all.end (), after.begin (), after.end ());
+	std::sort (rep.unsure.begin (), rep.unsure.end ());
+	return all;
 }

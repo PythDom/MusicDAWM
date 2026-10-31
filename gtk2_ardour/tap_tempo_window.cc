@@ -15,7 +15,11 @@
 #include "ardour/session.h"
 #include "ardour/tap_tempo.h"
 
+#include "temporal/tempo.h"
+
 #include "gtkmm2ext/utils.h"
+
+#include "widgets/tooltips.h"
 
 #include "gui_thread.h"
 
@@ -41,6 +45,8 @@ TapTempoWindow::TapTempoWindow (PublicEditor& e)
 	, _on_bars (_("every bar start"))
 	, _divisions (1.0, 0)
 	, _smooth (_("Smooth my timing"))
+	, _extend (_("Extend the grid to the whole song"))
+	, _keep (_("Keep the tempo map outside the tapped passage"))
 	, _tap (_("Tap (T)"))
 	, _clear (_("Clear taps"))
 	, _apply (_("Apply to the tempo map"))
@@ -56,15 +62,20 @@ TapTempoWindow::TapTempoWindow (PublicEditor& e)
 	}
 	_note_value.set_active_text ("4");
 	_smooth.set_active (true);
+	{
+		RadioButton::Group eg = _extend.get_group ();
+		_keep.set_group (eg);
+		_extend.set_active (true);
+	}
 
 	Label* help = manage (new Label (
 	    _("Play the song and press T (or click Tap) on the beat. Each time the song plays is a take; "
-	      "tapping a passage again replaces it. The first tap is bar 1. Space starts and stops playback.")));
+	      "tapping a passage again replaces it. Start tapping on a downbeat: the first tap starts a bar. You can tap only part of the song. Space starts and stops playback.")));
 	help->set_line_wrap (true);
 	help->set_size_request (420, -1);
 	help->set_alignment (0, 0.5);
 
-	Table* t = manage (new Table (4, 3));
+	Table* t = manage (new Table (6, 3));
 	t->set_spacings (6);
 	int row = 0;
 	Label* l;
@@ -83,6 +94,14 @@ TapTempoWindow::TapTempoWindow (PublicEditor& e)
 	t->attach (_snap_track, 1, 3, row, row + 1, FILL, SHRINK);
 	++row;
 	t->attach (_smooth, 1, 3, row, row + 1, FILL, SHRINK);
+	++row;
+	l = manage (new Label (_("Outside the taps:"), 1.0, 0.5));
+	t->attach (*l, 0, 1, row, row + 1, FILL, SHRINK);
+	t->attach (_extend, 1, 3, row, row + 1, FILL, SHRINK);
+	++row;
+	t->attach (_keep, 1, 3, row, row + 1, FILL, SHRINK);
+	ArdourWidgets::set_tooltip (_extend, _("Before and after the taps, the grid follows the beat of the track chosen in \"Snap taps to the hits of\", or keeps your tapped tempo"));
+	ArdourWidgets::set_tooltip (_keep, _("Only the tapped passage changes; the tempo map before and after it stays in place"));
 
 	_tap.set_size_request (-1, 60);
 	_status.set_alignment (0, 0.5);
@@ -243,9 +262,9 @@ TapTempoWindow::apply ()
 	TapTempo::Report    rep;
 	vector<samplepos_t> taps = TapTempo::clean (_taps, opt, rep);
 
+	vector<samplepos_t> onsets;
 	if (_snap_track.get_active_row_number () > 0) {
 		std::shared_ptr<Track> track = std::dynamic_pointer_cast<Track> (_session->route_by_name (_snap_track.get_active_text ()));
-		vector<samplepos_t>    onsets;
 		{
 			PublicEditor::CursorRAII cr (_editor, _editor.cursors ()->wait);
 			gdk_flush ();
@@ -256,6 +275,14 @@ TapTempoWindow::apply ()
 		samplecnt_t const max_d = std::min<samplecnt_t> (_session->sample_rate () * 0.06,
 		                                                 (taps.back () - taps.front ()) / (4 * (samplecnt_t)taps.size ()));
 		taps = TapTempo::snap (taps, onsets, max_d, rep);
+	}
+
+	opt.keep_outside = _keep.get_active ();
+	if (!opt.keep_outside) {
+		/* the whole song: the session range, or the taps if there is none */
+		samplepos_t const start = _session->current_start_sample ();
+		samplepos_t const end   = std::max (_session->current_end_sample (), taps.back ());
+		taps                    = TapTempo::extend (taps, opt, onsets, std::min (start, taps.front ()), end, _session->sample_rate (), rep);
 	}
 
 	{
@@ -272,6 +299,20 @@ TapTempoWindow::apply ()
 	}
 	if (rep.snapped) {
 		msg += string_compose (_(" %1 taps moved onto hits."), rep.snapped);
+	}
+	if (rep.extended_before || rep.extended_after) {
+		msg += string_compose (_(" Grid extended by %1 %2 before and %3 after the taps"), rep.extended_before, opt.unit == TapTempo::Bars ? _("bars") : _("beats"), rep.extended_after);
+		msg += onsets.empty () ? string (_(" at your tapped tempo.")) : string_compose (_(", %1 of them on the track's hits."), rep.followed);
+	}
+	if (!rep.unsure.empty ()) {
+		Temporal::TempoMap::SharedPtr tm (Temporal::TempoMap::use ());
+		string              where;
+		for (auto const& u : rep.unsure) {
+			int const b0 = tm->bbt_at (timepos_t (u.first)).bars;
+			int const b1 = tm->bbt_at (timepos_t (u.second)).bars;
+			where += string_compose (where.empty () ? "%1-%2" : ", %1-%2", b0, b1);
+		}
+		msg += string_compose (_(" No clear hits in bars %1: check the grid there, or play and tap those bars again."), where);
 	}
 	msg += _(" Edit > Undo goes back to the previous map.");
 	_status.set_text (msg);

@@ -267,6 +267,110 @@ main (int argc, char* argv[])
 	}
 	check (e3.rms < 6 && e3.max < 15, "taps on bar starts: every bar within 15 ms");
 
+	/* ---- extending a tapped passage to the whole song (BACKLOG B-1) ---- */
+	{
+		/* a drummer: 64 bars of 4/4 drifting from 96 to 108 bpm, hi-hat
+		 * eighths between the beats, a 4-bar break (bars 41-44); taps on
+		 * bars 1-8 only */
+		vector<double> const beats = true_beats (2.0, 256, 96, 108);
+		double const         len   = beats.back () + 2;
+		vector<float>        x ((size_t)(len * SR), 0.f);
+		auto hit = [&x] (double t, float a) {
+			samplepos_t const p = (samplepos_t)std::llround (t * SR);
+			for (int k = 0; k < 480 && p + k < (samplepos_t)x.size (); ++k) {
+				x[p + k] += a * expf (-k / 60.f) * sinf (2.f * M_PI * 1000.f * k / SR);
+			}
+		};
+		for (size_t k = 0; k < beats.size (); ++k) {
+			if (k >= 160 && k < 176) {
+				continue; /* the break */
+			}
+			hit (beats[k], 0.8f);
+			if (k + 1 < beats.size ()) {
+				hit (0.5 * (beats[k] + beats[k + 1]), 0.5f); /* hi-hat eighth */
+			}
+		}
+		vector<samplepos_t> const ons = TapTempo::detect_onsets (x.data (), x.size (), SR);
+
+		vector<samplepos_t> taps8;
+		for (size_t k = 0; k < 32; ++k) {
+			taps8.push_back ((samplepos_t)std::llround ((beats[k] + (k ? jitter (rng) : 0)) * SR));
+		}
+		TapTempo::Options o;
+		TapTempo::Report  r;
+		vector<samplepos_t> const c8 = TapTempo::clean (taps8, o, r);
+
+		/* follow the drums to the end */
+		TapTempo::Report          rf;
+		vector<samplepos_t> const all = TapTempo::extend (c8, o, ons, 0, (samplepos_t)(len * SR), SR, rf);
+		printf ("   extended: %zu beats (%d after the taps, %d on hits), %zu unsure stretch(es)", all.size (), rf.extended_after, rf.followed, rf.unsure.size ());
+		for (auto const& u : rf.unsure) {
+			printf (" [%.2f-%.2f s]", u.first / double (SR), u.second / double (SR));
+		}
+		printf ("\n");
+		apply_map (all, o);
+		Err const ef = errors (beats, 1);
+		/* outside the break, and in it (nothing to follow there) */
+		double out_max = 0, in_max = 0;
+		{
+			TempoMap::SharedPtr tm (TempoMap::use ());
+			for (size_t k = 0; k < beats.size (); ++k) {
+				double const e = fabs (map_time (beats[0], k) - beats[k]) * 1000;
+				(k >= 160 && k < 176 ? in_max : out_max) = std::max (k >= 160 && k < 176 ? in_max : out_max, e);
+			}
+		}
+		printf ("   following the drums: beat error over 64 bars rms %.1f ms; max %.1f ms outside the break, %.1f ms in it\n", ef.rms, out_max, in_max);
+		check (all.size () == 256 && out_max < 15 && in_max < 40,
+		       "extension: the grid follows the drift to the end (every beat within 15 ms; within 40 ms in the 4-bar break)");
+		check (rf.unsure.size () == 1 && rf.unsure[0].first <= (samplepos_t)(beats[160] * SR) && rf.unsure[0].second >= (samplepos_t)(beats[175] * SR),
+		       "the 4-bar break is reported as unsure");
+
+		/* no track chosen: the tapped tempo continues (the mean of the
+		 * last 16 intervals, not the last interval) */
+		TapTempo::Report          rs;
+		vector<samplepos_t> const st = TapTempo::extend (c8, o, vector<samplepos_t> (), 0, (samplepos_t)(len * SR), SR, rs);
+		double const              mean16 = (c8.back () - c8[c8.size () - 17]) / 16.0;
+		check (st.size () > 32 && std::llabs ((st[32] - st[31]) - (samplepos_t)std::llround (mean16)) <= 1 && rs.unsure.empty (),
+		       "extension without a track: the tapped passage's tempo continues");
+
+		/* keep the map outside the passage: 120 bpm, 140 bpm from 100 s;
+		 * bars 9-16 tapped */
+		{
+			TempoMap::WritableSharedPtr wm = TempoMap::write_copy ();
+			TapTempo::Options           o1;
+			vector<samplepos_t>         even;
+			for (int k = 0; k < 8; ++k) {
+				even.push_back (k * SR / 2);
+			}
+			TapTempo::apply (*wm, even, SR, o1); /* a clean 120 bpm map */
+			wm->set_tempo (Tempo (140, 4), timepos_t ((samplepos_t)100 * SR));
+			TempoMap::update (wm);
+		}
+		vector<samplepos_t> mid (c8.begin () + 0, c8.end ());
+		for (auto& t : mid) {
+			t += 30 * SR; /* the passage starts at 32 s */
+		}
+		TapTempo::Options ok;
+		ok.keep_outside = true;
+		apply_map (mid, ok);
+		{
+			TempoMap::SharedPtr tm (TempoMap::use ());
+			bool                kept_after = false, kept_before = false;
+			for (auto const& p : tm->tempos ()) {
+				if (std::llabs (superclock_to_samples (p.sclock (), SR) - 100 * SR) < 2 && fabs (p.note_types_per_minute () - 140) < 0.01) {
+					kept_after = true;
+				}
+				if (superclock_to_samples (p.sclock (), SR) < 30 * SR && fabs (p.note_types_per_minute () - 120) < 0.01) {
+					kept_before = true;
+				}
+			}
+			BBT_Time const b = tm->bbt_at (timepos_t (mid.front ()));
+			printf ("   keep outside: passage starts at %d|%d|%d\n", b.bars, b.beats, b.ticks);
+			check (kept_after && kept_before && b.beats == 1 && b.ticks == 0,
+			       "keep the map outside the passage: tempos before and after stay, the passage starts on a bar");
+		}
+	}
+
 	s->save_state ("");
 	printf ("%s: %d failure(s)\n", failures ? "FAILED" : "PASSED", failures);
 	fflush (stdout);

@@ -189,7 +189,7 @@ For songs recorded without a click (like your Zoom R8 sessions): tap along while
 **Edit → Tempo → Tap Tempo Map…**
 
 1. Choose what you tap on: **every beat** or **every bar start**, and the **time signature** (for example 4/4, 3/4 or 6/8).
-2. Start playback (Space) from a little before the first beat, and **press T** (or click **Tap**) in time with the song. The **first tap is bar 1**, so start tapping on the first downbeat; a count-in or silence before it is fine.
+2. Start playback (Space) from a little before the first beat, and **press T** (or click **Tap**) in time with the song. The **first tap starts a bar** (bar 1 when you tap from the beginning), so start tapping on a downbeat; a count-in or silence before it is fine. You do not have to tap the whole song (see *Outside the taps* below).
 3. Stop playback when you are done. Each time the song plays is a **take**: to fix a passage, play it again and tap only that passage; the new taps replace the old ones there.
 4. Click **Apply to the tempo map**. The window says how many taps were used, how many double taps were ignored and how many missed taps were filled in.
 
@@ -197,10 +197,17 @@ Options:
 - **Smooth my timing** (on by default) evens out small timing wobble in your taps while following the real tempo changes of the performance.
 - **Snap taps to the hits of:** pick a track with clear attacks (drums, a strummed guitar). Each tap then moves onto the nearest hit, so the grid lands exactly on the beat even if your tapping was a little loose. Taps far from any hit stay where they were.
 
+**Outside the taps** — what happens before your first and after your last tap:
+- **Extend the grid to the whole song** (default):
+  - If a track is chosen in **Snap taps to the hits of**, MusicDAWM **follows that track's beat** before and after your taps. It starts from the tempo and timing you tapped, moves each beat onto the hit it finds there, and lets the tempo follow the band as it speeds up or slows down. So you can tap 8 bars over the drums and get a grid for the whole song.
+  - Where it finds no clear hits for two beats or more (a break, a quiet verse), it carries on at the tempo trend and catches up at the next hits. The window lists those bars ("No clear hits in bars 41–44") so you can check the grid there, or play and tap just those bars again.
+  - With no track chosen, the grid continues at the tempo of your last (and, before the taps, first) 16 taps.
+- **Keep the tempo map outside the tapped passage**: only the tapped passage changes; the tempo map before and after it stays where it was in time, and the bar numbers carry on. The tempo just before and just after the passage is adjusted slightly so that the passage starts on a bar and the later tempo changes stay in place. The time signature is kept as it was.
+
 What changes and what does not:
 - **Audio stays exactly where it was recorded.** Only the bar grid moves.
 - MIDI and Drum Studio parts follow bars and beats, so they move with the new grid.
-- The whole tempo map is replaced (tempo and time signature). **Edit → Undo** brings back the previous map in one step.
+- With **Extend the grid to the whole song**, the whole tempo map is replaced (tempo and time signature). **Edit → Undo** brings back the previous map in one step, in either mode.
 - The grid can still be fine-tuned afterwards with Ardour's own tempo tools (drag the tempo markers).
 
 Good to know: tap times are taken from what you hear (the playback latency is compensated), so tapping is as accurate as your timing; with **Snap** it is as accurate as the hits on the chosen track.

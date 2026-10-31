@@ -62,7 +62,7 @@
 
 - The tempo is constant between taps; a gradual change within one beat or bar is not modelled.
 - Tapping replaces the whole tempo map, including time-signature changes. Songs with several time signatures need the grid fine-tuned with Ardour's tempo tools afterwards.
-- Beyond the last tap, the last interval's tempo continues to the end of the song, which drifts on songs played without a click. Extrapolating a tapped passage properly (average tempo, or beat-following on a chosen track) is recorded for later: `BACKLOG.md` B-1, D-045.
+- Beyond the taps, the grid now follows the chosen track's beat or keeps the tapped tempo (BACKLOG B-1, done 2026-10-31, D-046; see *Update* below). In a break with no hits it runs on the tempo trend: in the test, at most 15.6 ms off within a 4-bar break.
 - Snapping needs a track with clear attacks. On a smooth pad or a vocal it may find few hits, and then the taps stay as tapped.
 
 ## Acceptance test (for the user)
@@ -72,3 +72,16 @@
 3. Apply. Check that the bar lines in the editor fall on the beats you hear: turn on the grid, or play a Drum Studio part over it.
 4. Try once more with "Snap taps to the hits of" set to the drum or guitar track.
 5. Edit → Undo, and check that the old grid comes back.
+
+## Update 2026-10-31: extending a tapped passage (BACKLOG B-1)
+
+- `TapTempo::extend ()`: from the taps, the beat is followed on the hits of the track chosen for snapping (each next beat predicted from the current tempo and its trend, moved onto a hit within 15 % of a beat, 25 % after a miss; the tempo follows a quarter of each error), backwards before the first tap and forwards after the last; with no track, the tempo of the nearest 16 tapped intervals continues. Stretches of 2 or more beats with no hit are reported; nothing is added before the first or after the last hit (count-in, end of the song). Before the taps only whole bars are added, so the first tap stays a bar start.
+- `Options::keep_outside`: only the passage changes; the tempos before and after keep their times (the tempo just before the passage is adjusted so that whole bars end on the first tap, the one just after so that whole beats end on the next old tempo point; no BBT marker, which would move the later points by beats).
+- Window: *Outside the taps:* **Extend the grid to the whole song** (default) or **Keep the tempo map outside the tapped passage**; the result lists the bars without clear hits.
+
+| Check (64 bars of 4/4, 96 → 108 bpm, hi-hat eighths, a 4-bar break, bars 1–8 tapped) | Result |
+|---|---|
+| Grid over the whole song, following the drums | 256 beats; rms 2.8 ms, max 8.9 ms outside the break, 15.6 ms in it |
+| The break reported | 1 stretch, covering bars 41–44 |
+| No track: the tapped tempo continues (mean of the last 16 intervals) | pass |
+| Keep outside: the tempos before (120 bpm) and after (140 bpm at 100 s) stay, the passage starts on a bar | pass |

@@ -53,6 +53,8 @@ private:
 	Gtk::SpinButton    _divisions;
 	Gtk::ComboBoxText  _note_value;
 	Gtk::CheckButton   _smooth;
+	Gtk::RadioButton   _extend;
+	Gtk::RadioButton   _keep;
 	Gtk::ComboBoxText  _snap_track;
 	Gtk::Button        _tap;
 	Gtk::Button        _clear;
