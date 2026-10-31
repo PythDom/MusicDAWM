@@ -39,7 +39,7 @@
 #include "automation_controller.h"
 #include "final_mix_window.h"
 #include "gui_thread.h"
-#include "level_meter.h"
+#include "gain_meter.h"
 #include "mouse_cursors.h"
 #include "public_editor.h"
 #include "timers.h"
@@ -204,7 +204,7 @@ public:
 		, _name (r->name ())
 		, _reset (X_("↺"))
 		, _pan (ArdourKnob::default_elements, ArdourKnob::Detent)
-		, _meter (s)
+		, _gpm (s, PX_SCALE (220))
 		, _fx (_("FX"))
 		, _mute (_("M"))
 		, _solo (_("S"))
@@ -237,20 +237,12 @@ public:
 		pan_box->pack_start (*manage (new Label (_("R"))), true, true);
 		pack_start (*pan_box, false, false);
 
-		shared_ptr<AutomationControl> gain = r->gain_control ();
-		_fader = AutomationController::create (gain->parameter (), gain->desc (), gain, false);
-		_fader->set_name (X_("ProcessorControlSlider"));
-		_fader->set_size_request (PX_SCALE (34), PX_SCALE (220));
-		_meter.set_meter (r->shared_peak_meter ().get ());
-		_meter.clear_meters ();
-		_meter.setup_meters (PX_SCALE (220), PX_SCALE (6), 6);
-		HBox* fader_box = manage (new HBox (false, 3));
-		fader_box->pack_start (*manage (new Label ("")), true, true);
-		fader_box->pack_start (*_fader, false, false);
-		fader_box->pack_start (_meter, false, false);
-		fader_box->pack_start (*manage (new Label ("")), true, true);
+		/* the classic mixer's vertical fader, gain entry and meter */
+		_gpm.set_controls (r, r->shared_peak_meter (), r->amp (), r->gain_control ());
+		_gpm.setup_meters ();
+		HBox* fader_box = manage (new HBox (false, 0));
+		fader_box->pack_start (_gpm, true, false);
 		pack_start (*fader_box, true, true);
-		pack_start (_db, false, false);
 
 		set_tooltip (_fx, _("High-pass, brightness, punch, space and the track's role"));
 		pack_start (_fx, false, false);
@@ -275,10 +267,8 @@ public:
 			}
 		});
 
-		gain->Changed.connect (_connections, invalidator (*this), std::bind (&FinalMixStrip::update_db, this), gui_context ());
 		r->mute_control ()->Changed.connect (_connections, invalidator (*this), std::bind (&FinalMixStrip::update_ms, this), gui_context ());
 		r->solo_control ()->Changed.connect (_connections, invalidator (*this), std::bind (&FinalMixStrip::update_ms, this), gui_context ());
-		update_db ();
 		update_ms ();
 		show_all ();
 	}
@@ -287,7 +277,7 @@ public:
 
 	void fast_update ()
 	{
-		_meter.update_meters ();
+		_gpm.update_meters ();
 	}
 
 private:
@@ -296,20 +286,12 @@ private:
 	ArdourButton                          _name;
 	ArdourButton                          _reset;
 	ArdourKnob                            _pan;
-	std::shared_ptr<AutomationController> _fader;
-	LevelMeterHBox                        _meter;
-	Label                                 _db;
+	GainMeter                             _gpm;
 	ArdourButton                          _fx;
 	ArdourButton                          _mute;
 	ArdourButton                          _solo;
 	ArdourButton                          _remove;
 	PBD::ScopedConnectionList             _connections;
-
-	void update_db ()
-	{
-		float const db = accurate_coefficient_to_dB (_route->gain_control ()->get_value ());
-		_db.set_text (db < -199 ? string ("-inf") : string_compose ("%1 dB", fmt1 (db)));
-	}
 
 	void update_ms ()
 	{
@@ -624,7 +606,7 @@ FinalMixWindow::rebuild ()
 		delete w;
 	}
 	_session_connections.drop_connections ();
-	_master_fader.reset ();
+	_master_gpm.reset ();
 	for (Widget* w : _master_fader_box.get_children ()) {
 		_master_fader_box.remove (*w);
 	}
@@ -687,12 +669,11 @@ FinalMixWindow::rebuild ()
 	_add_tracks.set_text (n_excluded ? string_compose (_("+ Tracks (%1)"), n_excluded) : _("+ Tracks"));
 
 	if (shared_ptr<Route> m = _session->master_out ()) {
-		shared_ptr<AutomationControl> g = m->gain_control ();
-		_master_fader                   = AutomationController::create (g->parameter (), g->desc (), g, false);
-		_master_fader->set_name (X_("ProcessorControlSlider"));
-		_master_fader->set_size_request (PX_SCALE (34), PX_SCALE (120));
+		_master_gpm.reset (new GainMeter (_session, PX_SCALE (160)));
+		_master_gpm->set_controls (m, m->shared_peak_meter (), m->amp (), m->gain_control ());
+		_master_gpm->setup_meters ();
 		HBox* c = manage (new HBox);
-		c->pack_start (*_master_fader, true, false);
+		c->pack_start (*_master_gpm, true, false);
 		_master_fader_box.pack_start (*c, true, true);
 		_master_fader_box.show_all ();
 	}
@@ -985,6 +966,9 @@ FinalMixWindow::fast_update ()
 {
 	for (auto s : _strips) {
 		s->fast_update ();
+	}
+	if (_master_gpm) {
+		_master_gpm->update_meters ();
 	}
 }
 

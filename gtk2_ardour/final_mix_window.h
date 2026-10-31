@@ -38,6 +38,7 @@ class PublicEditor;
 class FinalMixStrip;
 class FinalMixFxWindow;
 class AutomationController;
+class GainMeter;
 
 class FinalMixWindow : public ArdourWindow
 {
@@ -97,7 +98,7 @@ private:
 	Gtk::SpinButton                       _custom;
 	Gtk::SpinButton                       _ceiling;
 	ArdourWidgets::ArdourButton           _reset_meter;
-	std::shared_ptr<AutomationController> _master_fader;
+	std::unique_ptr<GainMeter>            _master_gpm;
 	Gtk::VBox                             _master_fader_box;
 
 	bool                      _ignore_changes = false;

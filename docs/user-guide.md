@@ -214,7 +214,7 @@ Good to know: tap times are taken from what you hear (the playback latency is co
 Each column, from top to bottom:
 - **Name** and **↺** (reset: no effects, fader at 0 dB, pan in the centre).
 - **Pan** knob (left – centre – right; double-click returns to the centre).
-- **Fader** with its level meter and the value in dB.
+- **Fader**: the same vertical fader and level meter as in the classic mixer. Drag it up or down; the box above it shows the level in dB and accepts a typed value (the box next to it is the peak level; click it to reset).
 - **FX**: opens the track's panel:
   - **High-pass**: removes the low end the track does not need (rumble, mud). The frequency starts at a value that suits the role (for example 100 Hz for a vocal, 35 Hz for a bass).
   - **Brightness**: a gentle lift (or cut) of the highs above about 6 kHz.
@@ -239,7 +239,7 @@ The **Master** column on the right:
 - The **loudness** of the song while it plays, in LUFS (the unit streaming services use): the big figure is the whole playback so far, **Now** the last moment, **Peak** the highest true peak. Each new playback starts a new measurement (**Restart** does it by hand).
 - **Target**: **Streaming (−14 LUFS)**, **Loud (−9 LUFS)** or **Custom**. The column says how far the song is from it.
 - **Limiter ceiling**: changing it puts a limiter last on the master bus (the first time), which keeps the true peaks under that level; −1 dBTP is safe for streaming and MP3.
-- The master fader.
+- The master fader and meter, as in the classic mixer.
 
 **Before / After / Ref** (top right) — to judge the mix with your ears, at the same loudness, because louder always sounds "better":
 - **After**: the mix.
