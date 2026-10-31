@@ -156,6 +156,17 @@ AudioPort::reinit (bool with_ratio)
 	_src.reset ();
 }
 
+Sample const*
+AudioPort::peek_audio_data (pframes_t nframes)
+{
+	/* caller must hold process lock; as get_audio_buffer () */
+	assert (_port_handle);
+	if (!externally_connected () || (0 != (flags() & TransportSyncPort))) {
+		return (Sample const*) port_engine.get_buffer (_port_handle, nframes);
+	}
+	return &_data[_global_port_buffer_offset];
+}
+
 AudioBuffer&
 AudioPort::get_audio_buffer (pframes_t nframes)
 {

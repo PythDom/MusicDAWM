@@ -43,7 +43,11 @@
 #include "ardour/automation_control.h"
 #include "ardour/dB.h"
 #include "ardour/final_mix.h"
+#include "ardour/audio_port.h"
 #include "ardour/internal_send.h"
+#include "ardour/io.h"
+#include "ardour/meter.h"
+#include "ardour/monitor_control.h"
 #include "ardour/mute_control.h"
 #include "ardour/interthread_info.h"
 #include "ardour/lv2_plugin.h"
@@ -186,6 +190,7 @@ add_track (Session& s, string const& name, string const& wav, std::shared_ptr<Au
 	std::shared_ptr<Region>      whole = RegionFactory::create (src, plist);
 	std::shared_ptr<AudioRegion> r     = std::dynamic_pointer_cast<AudioRegion> (RegionFactory::create (whole, false));
 	std::shared_ptr<AudioTrack>  t     = s.new_audio_track (1, 2, 0, 1, name, PresentationInfo::max_order, Normal, true).front ();
+	t->input ()->disconnect (); /* the loopback device returns the master there */
 	t->playlist ()->add_region (r, timepos_t (Temporal::AudioTime));
 	/* as an import does: the session range covers the region (freeze renders it) */
 	s.maybe_update_session_range (timepos_t (Temporal::AudioTime), timepos_t (src->length ().samples ()));
@@ -228,6 +233,9 @@ main (int argc, char* argv[])
 	}
 	string const dir = argv[1];
 
+	/* what the master plays comes back at system:capture: the test hears
+	 * what a sound card would get */
+	Glib::setenv ("MUSICDAWM_TEST_AUDIO_DEVICE", "Loopback", true);
 	SessionUtils::init (false);
 	BusProfile bus_profile;
 	bus_profile.master_out_channels = 2;
@@ -306,14 +314,29 @@ main (int argc, char* argv[])
 	std::shared_ptr<AudioTrack> tt;
 	add_track (*s, "Tone", tone, &tt);
 	s->set_master_loudness_metering (true);
+
+	/* what leaves the master must still reach the sound card while it is
+	 * measured: a track records the loopback of the outputs */
+	std::shared_ptr<AudioTrack> cap = s->new_audio_track (2, 2, 0, 1, "Capture", PresentationInfo::max_order, Normal, true).front ();
+	cap->input ()->disconnect ();
+	cap->output ()->disconnect ();
+	cap->input ()->connect (cap->input ()->audio (0), "system:capture_1");
+	cap->input ()->connect (cap->input ()->audio (1), "system:capture_2");
+	cap->monitoring_control ()->set_value (MonitorInput, PBD::Controllable::NoGroup);
+	cap->set_meter_point (MeterInput);
+
 	/* let the new track's disk reader fill before playing */
 	s->request_locate (0, false, MustStop);
 	Glib::usleep (1000000);
 	s->request_locate (0, false, MustRoll);
 	Glib::usleep (4000000);
 	Session::MasterLoudness const l1 = s->master_loudness ();
+	float const heard = cap->peak_meter ()->meter_level (0, MeterMaxPeak);
 	s->request_stop ();
 	Glib::usleep (300000);
+	printf ("   the sound card gets (loopback): peak %.1f dBFS\n", heard);
+	check (heard > -30, "measuring the loudness leaves the master audible at the outputs");
+	s->remove_route (cap);
 	/* two channels at 0.1/sqrt(2) peak; at 1 kHz the K-weighting (+0.69 dB)
 	 * cancels the -0.691 of the LUFS formula */
 	double const expect = 10 * log10 (2 * 0.5 * pow (0.1 * M_SQRT1_2, 2));

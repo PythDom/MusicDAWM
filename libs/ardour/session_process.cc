@@ -1951,7 +1951,8 @@ Session::run_master_loudness (pframes_t nframes)
 	/* a mono master is measured as both channels */
 	float const* data[2];
 	for (uint32_t c = 0; c < 2; ++c) {
-		data[c] = ports->nth_audio_port (std::min (c, n - 1))->get_audio_buffer (nframes).data ();
+		/* not get_audio_buffer (): it would silence the output */
+		data[c] = ports->nth_audio_port (std::min (c, n - 1))->peek_audio_data (nframes);
 	}
 	/* on Windows, the first cycle of a run can carry uninitialised samples
 	 * (seen as ~1e26 in CI); one of them spoils the whole measurement. No

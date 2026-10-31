@@ -51,6 +51,12 @@ public:
 	}
 
 	AudioBuffer& get_audio_buffer (pframes_t nframes);
+
+	/* MusicDAWM: the samples of this cycle, for reading only. Unlike
+	 * get_audio_buffer (), it leaves the buffer as it is: get_audio_buffer ()
+	 * marks it unwritten, and an unwritten output is silenced at the end
+	 * of the cycle, before it reaches the sound card. */
+	Sample const* peek_audio_data (pframes_t nframes);
 	void set_buffer_size (pframes_t nframes);
 
 protected:

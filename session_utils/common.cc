@@ -227,6 +227,12 @@ SessionUtils::create_session (string dir, string state, float sample_rate, BusPr
 		return 0;
 	}
 
+	/* MusicDAWM: a test can choose the dummy device, e.g. "Loopback" (what
+	 * is played comes back at system:capture, as through a sound card) */
+	if (char const* dev = getenv ("MUSICDAWM_TEST_AUDIO_DEVICE")) {
+		engine->set_device_name (dev);
+	}
+
 	if (engine->start () != 0) {
 		std::cerr << "Cannot start Audio/MIDI engine\n";
 		return 0;
