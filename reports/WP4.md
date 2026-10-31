@@ -62,6 +62,7 @@
 
 - The tempo is constant between taps; a gradual change within one beat or bar is not modelled.
 - Tapping replaces the whole tempo map, including time-signature changes. Songs with several time signatures need the grid fine-tuned with Ardour's tempo tools afterwards.
+- Beyond the last tap, the last interval's tempo continues to the end of the song, which drifts on songs played without a click. Extrapolating a tapped passage properly (average tempo, or beat-following on a chosen track) is recorded for later: `BACKLOG.md` B-1, D-045.
 - Snapping needs a track with clear attacks. On a smooth pad or a vocal it may find few hits, and then the taps stay as tapped.
 
 ## Acceptance test (for the user)
