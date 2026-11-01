@@ -246,6 +246,9 @@ ARDOUR_UI::setup_transport ()
 #define TCOL col, col + 1
 
 	tabbables_table.attach (recorder_visibility_button,     TCOL, 0, 1 , FILL, FILL, hpadding, vpadding);
+	/* MusicDAWM WP2: the Rec page only with the recording controls (View menu) */
+	recorder_visibility_button.set_no_show_all (true);
+	recorder_visibility_button.set_visible (UIConfiguration::instance().get_show_recording_controls ());
 	tabbables_table.attach (trigger_page_visibility_button, TCOL, 1, 2 , FILL, FILL, hpadding, vpadding);
 	++col;
 	tabbables_table.attach (editor_visibility_button,       TCOL, 0, 1 , FILL, FILL, hpadding, vpadding);

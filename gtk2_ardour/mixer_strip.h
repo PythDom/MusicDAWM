@@ -320,6 +320,7 @@ private:
 	VisibilityGroup _visibility;
 	std::optional<bool> override_solo_visibility () const;
 	std::optional<bool> override_rec_mon_visibility () const;
+	void                sync_recording_controls ();
 
 	PBD::ScopedConnectionList _config_connection;
 

@@ -80,6 +80,8 @@ UI_CONFIG_VARIABLE (bool, render_plus_hints, "render-plus-hints", true)
 UI_CONFIG_VARIABLE (std::string, mixer_strip_visibility, "mixer-element-visibility", "Input,PhaseInvert,RecMon,SoloIsoLock,Output,Freeze,Comments")
 /* MusicDAWM: one-time upgrades of saved UI settings (see Mixer_UI) */
 UI_CONFIG_VARIABLE (uint32_t, musicdawm_ui_version, "musicdawm-ui-version", 0)
+/* MusicDAWM WP2: the songwriter layout hides what is only needed to record (View menu) */
+UI_CONFIG_VARIABLE (bool, show_recording_controls, "show-recording-controls", false)
 UI_CONFIG_VARIABLE (bool, allow_non_quarter_pulse, "allow-non-quarter-pulse", false)
 UI_CONFIG_VARIABLE (bool, show_region_gain, "show-region-gain", false)
 UI_CONFIG_VARIABLE (bool, show_region_xrun_markers, "show-region-xrun-markers", true)

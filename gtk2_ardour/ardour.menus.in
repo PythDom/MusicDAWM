@@ -552,6 +552,7 @@
     <menu name='View' action = 'View'>
       <menuitem action='ToggleMaximalEditor'/>
       <menuitem action='ToggleMaximalMixer'/>
+      <menuitem action='ToggleRecordingControls'/>
 
       <separator/>
       <menu name='LayerDisplay' action = 'LayerDisplay'>

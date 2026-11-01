@@ -543,7 +543,10 @@ ApplicationBar::repack_transport_hbox ()
 		}
 	}
 
-	bool show_rec = UIConfiguration::instance().get_show_toolbar_recpunch ();
+	/* MusicDAWM WP2: recording controls only when asked for (View menu) */
+	bool const recording = UIConfiguration::instance().get_show_recording_controls ();
+	_transport_ctrl.rec_button ().set_visible (recording);
+	bool show_rec = recording && UIConfiguration::instance().get_show_toolbar_recpunch ();
 	if (show_rec) {
 		_punch_label.show ();
 		_layered_label.show ();
@@ -966,7 +969,7 @@ ApplicationBar::parameter_changed (std::string p)
 		repack_transport_hbox ();
 	} else if (p == "show-disk-space-info") {
 		repack_transport_hbox ();
-	} else if (p == "show-toolbar-recpunch") {
+	} else if (p == "show-toolbar-recpunch" || p == "show-recording-controls") {
 		repack_transport_hbox ();
 	} else if (p == "show-toolbar-monitoring") {
 		repack_transport_hbox ();

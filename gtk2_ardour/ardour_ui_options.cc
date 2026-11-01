@@ -329,7 +329,15 @@ ARDOUR_UI::setup_session_options ()
 void
 ARDOUR_UI::parameter_changed (std::string p)
 {
-	if (p == "external-sync") {
+	if (p == "show-recording-controls") {
+		bool const on = UIConfiguration::instance().get_show_recording_controls ();
+		recorder_visibility_button.set_visible (on);
+		if (Glib::RefPtr<ToggleAction> t = ActionManager::get_toggle_action (X_("Common"), X_("ToggleRecordingControls"), false)) {
+			if (t->get_active () != on) {
+				t->set_active (on);
+			}
+		}
+	} else if (p == "external-sync") {
 
 		/* session parameter */
 

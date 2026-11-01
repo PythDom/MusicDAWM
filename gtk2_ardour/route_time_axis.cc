@@ -191,6 +191,9 @@ RouteTimeAxisView::set_route (std::shared_ptr<Route> rt)
 		} else {
 			controls_table.attach (*rec_enable_button, 2, 3, 0, 1, Gtk::SHRINK, Gtk::SHRINK, 0, 0);
 		}
+		/* MusicDAWM WP2: only with the recording controls (View menu) */
+		rec_enable_button->set_no_show_all (true);
+		rec_enable_button->set_visible (UIConfiguration::instance().get_show_recording_controls ());
 
 		if (is_midi_track()) {
 			set_tooltip(*rec_enable_button, _("Record (Right-click for Step Edit)"));
@@ -491,6 +494,10 @@ RouteTimeAxisView::parameter_changed (string const & p)
 {
 	if (p == "track-name-number") {
 		update_track_number_visibility();
+	} else if (p == "show-recording-controls") {
+		if (rec_enable_button && is_track ()) {
+			rec_enable_button->set_visible (UIConfiguration::instance().get_show_recording_controls ());
+		}
 	} else if (p == "editor-stereo-only-meters") {
 		if (UIConfiguration::instance().get_editor_stereo_only_meters()) {
 			gm.get_level_meter().set_max_audio_meter_count (2);
@@ -1080,7 +1087,7 @@ RouteTimeAxisView::set_height (uint32_t h, TrackHeightMode m, bool from_idle)
 			solo_button->show();
 		}
 		if (rec_enable_button)
-			rec_enable_button->show();
+			rec_enable_button->set_visible (UIConfiguration::instance().get_show_recording_controls ());
 
 		route_group_button.show();
 		automation_button.show();
@@ -1101,7 +1108,7 @@ RouteTimeAxisView::set_height (uint32_t h, TrackHeightMode m, bool from_idle)
 			solo_button->show();
 		}
 		if (rec_enable_button)
-			rec_enable_button->show();
+			rec_enable_button->set_visible (UIConfiguration::instance().get_show_recording_controls ());
 
 		route_group_button.hide ();
 		automation_button.hide ();

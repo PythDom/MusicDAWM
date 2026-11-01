@@ -809,6 +809,13 @@ ARDOUR_UI::install_dependent_actions ()
 
 	ActionManager::register_toggle_action (common_actions, X_("ToggleMaximalEditor"), _("Maximise Editor Space"), sigc::mem_fun (*this, &ARDOUR_UI::toggle_editing_space));
 	ActionManager::register_toggle_action (common_actions, X_("ToggleMaximalMixer"), _("Maximise Mixer Space"), sigc::mem_fun (*this, &ARDOUR_UI::toggle_mixer_space));
+
+	/* MusicDAWM WP2 */
+	Glib::RefPtr<ToggleAction> rc = ActionManager::register_toggle_action (common_actions, X_("ToggleRecordingControls"), _("Show Recording Controls"), [] () {
+		Glib::RefPtr<ToggleAction> t = ActionManager::get_toggle_action (X_("Common"), X_("ToggleRecordingControls"));
+		UIConfiguration::instance ().set_show_recording_controls (t->get_active ());
+	});
+	rc->set_active (UIConfiguration::instance ().get_show_recording_controls ());
 }
 
 void

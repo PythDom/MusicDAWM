@@ -687,6 +687,7 @@ MixerStrip::set_route (std::shared_ptr<Route> rt)
 			rec_mon_table.attach (*monitor_input_button, 1, 2, 0, 1);
 			rec_mon_table.attach (*monitor_disk_button, 1, 2, 1, 2);
 		}
+		sync_recording_controls ();
 
 	} else {
 
@@ -1897,7 +1898,9 @@ MixerStrip::state_id () const
 void
 MixerStrip::parameter_changed (string p)
 {
-	if (p == _visibility.get_state_name()) {
+	if (p == "show-recording-controls") {
+		sync_recording_controls ();
+	} else if (p == _visibility.get_state_name()) {
 		/* The user has made changes to the mixer strip visibility, so get
 		   our VisibilityGroup to reflect these changes in our widgets.
 		*/
@@ -1933,6 +1936,23 @@ MixerStrip::override_solo_visibility () const
 	}
 
 	return std::optional<bool> ();
+}
+
+/* MusicDAWM WP2: a track's record and In/Disk buttons only with the
+ * recording controls (View menu) */
+void
+MixerStrip::sync_recording_controls ()
+{
+	if (!route () || !is_track ()) {
+		return;
+	}
+	bool const on = UIConfiguration::instance ().get_show_recording_controls ();
+	for (ArdourButton* b : { rec_enable_button, monitor_input_button, monitor_disk_button }) {
+		if (b) {
+			b->set_no_show_all (true);
+			b->set_visible (on);
+		}
+	}
 }
 
 std::optional<bool>
