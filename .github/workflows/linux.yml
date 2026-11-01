@@ -86,6 +86,10 @@ jobs:
           bash ci/x42-mix-plugins-build.sh "$RUNNER_TEMP/lv2" > x42.log 2>&1 || { tail -n 40 x42.log; exit 1; }
           export TOP="$PWD"; . build/gtk2_ardour/ardev_common_waf.sh
           LV2_PATH="$RUNNER_TEMP/lv2" build/session_utils/musicdawm9-final_mix_test "$RUNNER_TEMP/finalmix"
+          # the session opens again, even without its plug-in state files
+          # (a crash in lilv before; and the undo history it saved reloads)
+          rm -rf "$RUNNER_TEMP/finalmix/plugins"
+          LV2_PATH="$RUNNER_TEMP/lv2" build/session_utils/musicdawm9-export -o "$RUNNER_TEMP/finalmix-reload.wav" "$RUNNER_TEMP/finalmix" finalmix
       - name: Waveform import test
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |

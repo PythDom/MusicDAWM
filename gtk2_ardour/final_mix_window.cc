@@ -588,6 +588,32 @@ FinalMixWindow::set_session (Session* s)
 	rebuild ();
 }
 
+/* the session is closing: let go of its routes now (the columns, the FX
+ * panels and the master meter hold them); a route that outlives its
+ * session crashes when it is finally destroyed */
+void
+FinalMixWindow::session_going_away ()
+{
+	_fast_timer.disconnect ();
+	_slow_timer.disconnect ();
+	_session_connections.drop_connections ();
+	drop_fx_windows ();
+	for (auto s : _strips) {
+		delete s;
+	}
+	_strips.clear ();
+	for (Widget* w : _columns.get_children ()) {
+		_columns.remove (*w);
+		delete w;
+	}
+	_master_gpm.reset ();
+	for (Widget* w : _master_fader_box.get_children ()) {
+		_master_fader_box.remove (*w);
+	}
+	_model.reset ();
+	ArdourWindow::session_going_away ();
+}
+
 void
 FinalMixWindow::on_show ()
 {

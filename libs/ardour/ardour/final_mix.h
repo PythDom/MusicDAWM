@@ -267,7 +267,7 @@ public:
 	class LIBARDOUR_API SnapshotCommand : public PBD::Command
 	{
 	public:
-		SnapshotCommand (FinalMix&, std::string const& name, Snapshot const& before, Snapshot const& after);
+		SnapshotCommand (Session&, std::string const& name, Snapshot const& before, Snapshot const& after);
 		SnapshotCommand (Session&, XMLNode const&);
 		~SnapshotCommand ();
 		void     operator() ();
@@ -275,8 +275,8 @@ public:
 		XMLNode& get_state () const;
 
 	private:
+		/* its own: a window's FinalMix can go before the history */
 		FinalMix* _fm;
-		bool      _own_fm;
 		Snapshot  _before;
 		Snapshot  _after;
 	};

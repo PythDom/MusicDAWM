@@ -791,7 +791,7 @@ void
 FinalMix::commit_snapshot (string const& name, Snapshot const& before)
 {
 	_session.begin_reversible_command (name);
-	_session.commit_reversible_command (new SnapshotCommand (*this, name, before, snapshot ()));
+	_session.commit_reversible_command (new SnapshotCommand (_session, name, before, snapshot ()));
 	_session.set_dirty ();
 	SettingsChanged (); /* EMIT SIGNAL */
 }
@@ -901,9 +901,8 @@ FinalMix::reset_all ()
 
 /* ---- undo ---- */
 
-FinalMix::SnapshotCommand::SnapshotCommand (FinalMix& fm, string const& name, Snapshot const& before, Snapshot const& after)
-	: _fm (&fm)
-	, _own_fm (false)
+FinalMix::SnapshotCommand::SnapshotCommand (Session& s, string const& name, Snapshot const& before, Snapshot const& after)
+	: _fm (new FinalMix (s))
 	, _before (before)
 	, _after (after)
 {
@@ -954,11 +953,8 @@ FinalMix::snapshot_from (XMLNode const& c)
 	return v;
 }
 
-/* the window's FinalMix may be gone when the history is replayed; a
- * command restored from the session history has its own */
 FinalMix::SnapshotCommand::SnapshotCommand (Session& s, XMLNode const& node)
 	: _fm (new FinalMix (s))
-	, _own_fm (true)
 {
 	string name;
 	if (node.get_property (X_("name"), name)) {
@@ -971,9 +967,7 @@ FinalMix::SnapshotCommand::SnapshotCommand (Session& s, XMLNode const& node)
 
 FinalMix::SnapshotCommand::~SnapshotCommand ()
 {
-	if (_own_fm) {
-		delete _fm;
-	}
+	delete _fm;
 }
 
 void

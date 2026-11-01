@@ -2399,12 +2399,22 @@ LV2Plugin::set_state(const XMLNode& node, int version)
 			plugin_dir(),
 			Glib::build_filename(state_dir, "state.ttl"));
 
-		LilvState* state = lilv_state_new_from_file(
-			_world.world, _uri_map.urid_map(), NULL, state_file.c_str());
+		/* MusicDAWM: lilv crashes on a missing file (an unfinished save,
+		 * a copied session without its plugins folder); keep the plugin's
+		 * port values then */
+		LilvState* state = NULL;
+		if (Glib::file_test (state_file, Glib::FILE_TEST_EXISTS)) {
+			state = lilv_state_new_from_file(
+				_world.world, _uri_map.urid_map(), NULL, state_file.c_str());
+		} else {
+			warning << string_compose (_("LV2: the state of %1 is missing (%2); its settings are kept, its internal state is not"), name (), state_file) << endmsg;
+		}
 
-		lilv_state_restore(state, _impl->instance, NULL, NULL, 0, NULL);
-		lilv_state_free(_impl->state);
-		_impl->state = state;
+		if (state) {
+			lilv_state_restore(state, _impl->instance, NULL, NULL, 0, NULL);
+			lilv_state_free(_impl->state);
+			_impl->state = state;
+		}
 	}
 
 	if (!_plugin_state_dir.empty ()) {

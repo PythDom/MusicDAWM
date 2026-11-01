@@ -57,6 +57,7 @@ public:
 protected:
 	void on_show ();
 	void on_hide ();
+	void session_going_away ();
 
 private:
 	PublicEditor&                     _editor;
