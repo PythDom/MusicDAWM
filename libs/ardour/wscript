@@ -95,6 +95,7 @@ libardour_sources = [
         'filesystem_paths.cc',
         'filter.cc',
         'final_mix.cc',
+        'song_import.cc',
         'find_session.cc',
         'fixed_delay.cc',
         'fluid_synth.cc',

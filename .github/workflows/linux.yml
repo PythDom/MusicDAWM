@@ -90,6 +90,11 @@ jobs:
           # (a crash in lilv before; and the undo history it saved reloads)
           rm -rf "$RUNNER_TEMP/finalmix/plugins"
           LV2_PATH="$RUNNER_TEMP/lv2" build/session_utils/musicdawm9-export -o "$RUNNER_TEMP/finalmix-reload.wav" "$RUNNER_TEMP/finalmix" finalmix
+      - name: New song from WAV files test
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          export TOP="$PWD"; . build/gtk2_ardour/ardev_common_waf.sh
+          build/session_utils/musicdawm9-song_import_test "$RUNNER_TEMP/songimport"
       - name: Waveform import test
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |

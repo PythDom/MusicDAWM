@@ -130,6 +130,11 @@ jobs:
           # the session opens again, even without its plug-in state files
           rm -rf "$T/finalmix/plugins"
           stage/bin/musicdawm9-export.exe -o "$(cygpath -m "$T/finalmix-reload.wav")" "$(cygpath -m "$T/finalmix")" finalmix
+      - name: New song from WAV files test (bundle only)
+        run: |
+          T=$(cygpath -u "$RUNNER_TEMP")
+          export PATH="$PWD/stage/bin:/usr/bin:/c/Windows/System32:/c/Windows"
+          stage/bin/musicdawm9-song_import_test.exe "$(cygpath -m "$T/songimport")"
       - name: Waveform import test (bundle only)
         run: |
           T=$(cygpath -u "$RUNNER_TEMP"); W="$T/waveform"
