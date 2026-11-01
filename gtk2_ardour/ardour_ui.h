@@ -219,6 +219,8 @@ public:
 	bool session_load_in_progress;
 	int build_session (std::string const& path, std::string const& snapshot, std::string const& session_template, ARDOUR::BusProfile const&, bool from_startup_fsm, bool unnamed, Temporal::TimeDomain domain);
 	int build_session_stage_two (std::string const& path, std::string const& snapshot, std::string const& session_template, ARDOUR::BusProfile const&, bool unnamed, Temporal::TimeDomain domain, ARDOUR::samplecnt_t samplerate = 0);
+	/* MusicDAWM WP2: carry out the start page's request in the new song */
+	bool song_start_after_new_session ();
 
 	bool session_is_new() const { return _session_is_new; }
 

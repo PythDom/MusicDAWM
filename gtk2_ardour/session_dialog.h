@@ -71,6 +71,14 @@ public:
 		Prefs
 	};
 
+	/* MusicDAWM WP2: what the start page asked for, carried out by
+	 * ARDOUR_UI once the new song exists */
+	struct SongStart {
+		enum Kind { None = 0, Wavs, DAWproject, Waveform, Cubase };
+		static Kind                     kind;
+		static std::vector<std::string> files;
+	};
+
 	SessionDialog (DialogTab initial_tab, const std::string& session_name, const std::string& session_path,
 	               const std::string& template_name, bool cancel_not_quit);
 	~SessionDialog ();
@@ -105,6 +113,13 @@ private:
 	ArdourWidgets::ArdourButton existing_button;
 	ArdourWidgets::ArdourButton demo_button;
 	ArdourWidgets::ArdourButton prefs_button;
+	ArdourWidgets::ArdourButton start_button;
+
+	/* MusicDAWM WP2: the start page */
+	Gtk::VBox start_vbox;
+	void      setup_start_page ();
+	void      start_new_from_wavs ();
+	void      start_new_song (std::string const& name, SongStart::Kind);
 
 	Gtk::ComboBoxText  timebase_chooser;
 

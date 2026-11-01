@@ -57,10 +57,12 @@
 #include "ardour/profile.h"
 #include "ardour/session.h"
 #include "ardour/session_utils.h"
+#include "ardour/song_import.h"
 #include "ardour/session_state_utils.h"
 #include "ardour/session_directory.h"
 #include "ardour/wrong_program.h"
 
+#include "actions.h"
 #include "ardour_message.h"
 #include "ardour_ui.h"
 #include "engine_dialog.h"
@@ -801,7 +803,84 @@ ARDOUR_UI::build_session_stage_two (std::string const& path, std::string const& 
 		meta_session_setup (session_template.substr (11));
 	}
 
+	if (SessionDialog::SongStart::kind != SessionDialog::SongStart::None) {
+		/* once the editor is up */
+		Glib::signal_idle ().connect (sigc::mem_fun (*this, &ARDOUR_UI::song_start_after_new_session));
+	}
+
 	return 0;
+}
+
+bool
+ARDOUR_UI::song_start_after_new_session ()
+{
+	SessionDialog::SongStart::Kind const kind  = SessionDialog::SongStart::kind;
+	std::vector<std::string> const       files = SessionDialog::SongStart::files;
+	SessionDialog::SongStart::kind             = SessionDialog::SongStart::None;
+	SessionDialog::SongStart::files.clear ();
+
+	if (!_session) {
+		return false;
+	}
+
+	char const* action = 0;
+	switch (kind) {
+		case SessionDialog::SongStart::Wavs: {
+			if (files.empty ()) {
+				break;
+			}
+			Glib::RefPtr<Gdk::Window> w = (editor && editor->own_window ()) ? editor->own_window ()->get_window () : Glib::RefPtr<Gdk::Window> ();
+			if (w) {
+				w->set_cursor (Gdk::Cursor (Gdk::WATCH));
+			}
+			while (gtk_events_pending ()) {
+				gtk_main_iteration ();
+			}
+			ARDOUR::SongImport::Report const r = ARDOUR::SongImport::add_files (*_session, files);
+			if (w) {
+				w->set_cursor ();
+			}
+			_session->save_state ("");
+			if (Glib::RefPtr<Gtk::Action> z = ActionManager::get_action (X_("Editor"), X_("zoom-to-session"), false)) {
+				z->activate ();
+			}
+			std::string msg = string_compose (P_("%1 track was made from the WAV files.", "%1 tracks were made from the WAV files.", r.tracks), r.tracks);
+			if (r.converted > 0) {
+				msg += "\n" + string_compose (P_("%1 file was converted to the song's sample rate.", "%1 files were converted to the song's sample rate.", r.converted), r.converted);
+			}
+			if (r.no_stamp > 0) {
+				msg += "\n" + string_compose (P_("%1 file has no recording time stamp and was placed at the start.", "%1 files have no recording time stamp and were placed at the start.", r.no_stamp), r.no_stamp);
+			}
+			if (!r.failed.empty ()) {
+				msg += "\n\n" + std::string (_("These files could not be read:"));
+				for (auto const& f : r.failed) {
+					msg += "\n  " + Glib::path_get_basename (f);
+				}
+			}
+			ArdourMessageDialog md (msg, false, r.failed.empty () ? MESSAGE_INFO : MESSAGE_WARNING, BUTTONS_OK, true);
+			md.set_title (_("New song from WAV files"));
+			md.run ();
+			break;
+		}
+		case SessionDialog::SongStart::DAWproject:
+			action = X_("importDAWproject");
+			break;
+		case SessionDialog::SongStart::Waveform:
+			action = X_("importWaveform");
+			break;
+		case SessionDialog::SongStart::Cubase:
+			action = X_("importCubase");
+			break;
+		default:
+			break;
+	}
+	if (action) {
+		Glib::RefPtr<Gtk::Action> act = ActionManager::get_action (X_("Editor"), action, false);
+		if (act) {
+			act->activate ();
+		}
+	}
+	return false; /* once */
 }
 
 /** Ask the user for the name of a new snapshot and then take it.

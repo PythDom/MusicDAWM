@@ -33,6 +33,7 @@
 
 #include <ytkmm/cellrendererprogress.h>
 #include <ytkmm/filechooser.h>
+#include <ytkmm/filechooserdialog.h>
 #include <ytkmm/stock.h>
 
 #include "pbd/basename.h"
@@ -57,6 +58,7 @@
 #include "ardour/recent_sessions.h"
 #include "ardour/session.h"
 #include "ardour/session_state_utils.h"
+#include "ardour/song_import.h"
 #include "ardour/template_utils.h"
 #include "ardour/filename_extensions.h"
 
@@ -80,6 +82,9 @@ using namespace PBD;
 using namespace ARDOUR;
 using namespace ArdourWidgets;
 using namespace ARDOUR_UI_UTILS;
+
+SessionDialog::SongStart::Kind SessionDialog::SongStart::kind = SessionDialog::SongStart::None;
+std::vector<std::string>       SessionDialog::SongStart::files;
 
 SessionDialog::SessionDialog (DialogTab initial_tab, const std::string& session_name, const std::string& session_path, const std::string& template_name, bool cancel_not_quit)
 	: ArdourDialog (initial_tab == New ? _("Session Setup") : _("Recent Sessions"), true, true)
@@ -202,6 +207,14 @@ SessionDialog::SessionDialog (DialogTab initial_tab, const std::string& session_
 	_open_table.attach (*spacer,           0,1, row, row + 1, FILL, FILL); ++row;
 #endif
 
+	start_button.set_text (_("START"));
+	start_button.set_name ("tab button");
+	start_button.set_tweaks (ArdourButton::Tweaks (ArdourButton::ForceFlat));
+	start_button.set_corner_mask (ArdourButton::TOP);
+	start_button.set_can_focus (true);
+	start_button.signal_clicked.connect ([this] () { _tabs.set_current_page (4); });
+	grp->add_widget (start_button);
+	_open_table.attach (start_button,      0,1, row, row + 1, FILL, FILL); ++row;
 	_open_table.attach (recent_button,     0,1, row, row + 1, FILL, FILL); ++row;
 	_open_table.attach (existing_button,   0,1, row, row + 1, FILL, FILL); ++row;
 	_open_table.attach (new_button,        0,1, row, row + 1, FILL, FILL); ++row;
@@ -225,11 +238,14 @@ SessionDialog::SessionDialog (DialogTab initial_tab, const std::string& session_
 	_tabs.append_page(recent_vbox);
 	_tabs.append_page(existing_session_chooser);
 	_tabs.append_page(demo_vbox);
+	_tabs.append_page(start_vbox); /* 4: MusicDAWM's start page */
 
 	session_new_vbox.show_all();
 	recent_vbox.show_all();
 	existing_session_chooser.show_all();
 	demo_vbox.show_all ();
+	setup_start_page ();
+	start_vbox.show_all ();
 
 	_tabs.show_all();
 
@@ -306,7 +322,7 @@ SessionDialog::on_show ()
 {
 	ArdourDialog::on_show ();
 
-	_tabs.set_current_page(4); // force change
+	_tabs.set_current_page(3); // force change
 	switch (_initial_tab) {
 		case New:
 			_tabs.set_current_page(0);
@@ -315,7 +331,8 @@ SessionDialog::on_show ()
 			_tabs.set_current_page(2);
 			break;
 		default:
-			_tabs.set_current_page(1);
+			/* MusicDAWM: the start page, not the recent list */
+			_tabs.set_current_page(4);
 			break;
 	}
 }
@@ -328,7 +345,7 @@ SessionDialog::tab_page_switched(GtkNotebookPage*, guint page_number)
 	recent_button.set_active_state   (page_number==1 ? Gtkmm2ext::ExplicitActive : Gtkmm2ext::Off);
 	existing_button.set_active_state (page_number==2 ? Gtkmm2ext::ExplicitActive : Gtkmm2ext::Off);
 	demo_button.set_active_state     (page_number==3 ? Gtkmm2ext::ExplicitActive : Gtkmm2ext::Off);
-	prefs_button.set_active_state    (page_number==4 ? Gtkmm2ext::ExplicitActive : Gtkmm2ext::Off);
+	start_button.set_active_state    (page_number==4 ? Gtkmm2ext::ExplicitActive : Gtkmm2ext::Off);
 	/* clang-format on */
 
 	//check the status of each tab and sensitize the 'open' button appropriately
@@ -352,7 +369,131 @@ SessionDialog::tab_page_switched(GtkNotebookPage*, guint page_number)
 			_disable_plugins.hide ();
 			query_demo_sessions ();
 			break;
+		case 4:
+			_disable_plugins.hide ();
+			break;
 	}
+}
+
+void
+SessionDialog::setup_start_page ()
+{
+	start_vbox.set_spacing (10);
+	start_vbox.set_border_width (12);
+
+	Label* title = manage (new Label);
+	title->set_markup (string_compose ("<span size=\"large\"><b>%1</b></span>", _("What would you like to do?")));
+	title->set_alignment (0, 0.5);
+	start_vbox.pack_start (*title, false, false, 6);
+
+	auto big = [this] (string const& text, string const& tip, std::function<void()> act) {
+		ArdourButton* b = manage (new ArdourButton (text));
+		b->set_name ("generic button");
+		b->set_size_request (-1, 44);
+		set_tooltip (*b, tip);
+		b->signal_clicked.connect (act);
+		start_vbox.pack_start (*b, false, false);
+		return b;
+	};
+	big (_("New song from WAV files..."),
+	     _("Pick the WAV files of a song (for example the takes of a Zoom R8 project): each becomes a track, placed where it was recorded"),
+	     sigc::mem_fun (*this, &SessionDialog::start_new_from_wavs));
+	big (_("Open a song..."), _("Open a song from a folder"), [this] () { _tabs.set_current_page (2); });
+	big (_("Recent songs"), _("The songs you worked on lately"), [this] () { _tabs.set_current_page (1); });
+
+	Label* other = manage (new Label (_("Bring a song from another program:"), 0, 0.5));
+	start_vbox.pack_start (*other, false, false, 6);
+	HBox* imports = manage (new HBox (true, 6));
+	auto imp = [this, imports] (string const& text, string const& tip, SongStart::Kind k) {
+		ArdourButton* b = manage (new ArdourButton (text));
+		b->set_name ("generic button");
+		b->set_size_request (-1, 36);
+		set_tooltip (*b, tip);
+		b->signal_clicked.connect ([this, k] () {
+			start_new_song (string_compose (_("Imported %1"), Glib::DateTime::create_now_local ().format ("%F %H-%M")), k);
+		});
+		imports->pack_start (*b, true, true);
+	};
+	imp (_("DAWproject..."), _("A .dawproject file (Bitwig, Studio One, Cubase 14 and others)"), SongStart::DAWproject);
+	imp (_("Waveform..."), _("A Waveform (Tracktion) edit"), SongStart::Waveform);
+	imp (_("Cubase..."), _("How to bring a Cubase project (through DAWproject)"), SongStart::Cubase);
+	start_vbox.pack_start (*imports, false, false);
+
+	Label* sp = manage (new Label (""));
+	start_vbox.pack_start (*sp, false, false, 4);
+	big (_("New empty song"), _("An empty song, with all of Ardour's options (templates, sample rate, ...)"), [this] () { _tabs.set_current_page (0); });
+}
+
+void
+SessionDialog::start_new_from_wavs ()
+{
+	FileChooserDialog d (*this, _("New song from WAV files: choose the takes"), FILE_CHOOSER_ACTION_OPEN);
+	d.add_button (Stock::CANCEL, RESPONSE_CANCEL);
+	d.add_button (_("Make the song"), RESPONSE_OK);
+	d.set_select_multiple (true);
+	FileFilter wav;
+	wav.set_name (_("WAV files"));
+	wav.add_pattern ("*.wav");
+	wav.add_pattern ("*.WAV");
+	wav.add_pattern ("*.Wav");
+	d.add_filter (wav);
+	Label hint (_("Select all the takes of the song (Ctrl+A selects all the files of the folder), or select the folder that holds them."));
+	hint.show ();
+	d.set_extra_widget (hint);
+	/* the folder of the last takes (this run), else the home folder */
+	static string last_folder;
+	d.set_current_folder (last_folder.empty () ? Glib::get_home_dir () : last_folder);
+	if (d.run () != RESPONSE_OK) {
+		return;
+	}
+	std::vector<string> files;
+	for (auto const& f : d.get_filenames ()) {
+		/* a folder stands for all its WAV files */
+		if (Glib::file_test (f, Glib::FILE_TEST_IS_DIR)) {
+			for (auto const& w : ARDOUR::SongImport::wav_files_in (f)) {
+				files.push_back (w);
+			}
+		} else {
+			files.push_back (f);
+		}
+	}
+	d.hide ();
+	if (files.empty ()) {
+		return;
+	}
+	/* the song is named after the folder (a Zoom R8 project keeps its takes
+	 * in PROJxxx/AUDIO: the project's name then) */
+	string folder = Glib::path_get_dirname (files.front ());
+	last_folder   = folder;
+	string name   = Glib::path_get_basename (folder);
+	if (g_ascii_strcasecmp (name.c_str (), "AUDIO") == 0) {
+		name = Glib::path_get_basename (Glib::path_get_dirname (folder));
+	}
+	SongStart::files = files;
+	start_new_song (name, SongStart::Wavs);
+}
+
+void
+SessionDialog::start_new_song (string const& wanted, SongStart::Kind k)
+{
+	/* a legal name, not used yet in the songs folder */
+	string name = wanted;
+	for (char const c : Session::session_name_is_legal (name) + string (":/\\")) {
+		std::replace (name.begin (), name.end (), c, '-');
+	}
+	if (name.empty ()) {
+		name = _("Song");
+	}
+	string const parent = new_folder_chooser.get_filename ().empty () ? Config->get_default_session_parent_dir () : string (new_folder_chooser.get_filename ());
+	string       unique = name;
+	for (int n = 2; Glib::file_test (Glib::build_filename (parent, unique), Glib::FILE_TEST_EXISTS); ++n) {
+		unique = string_compose ("%1 %2", name, n);
+	}
+	new_name_entry.set_text (unique);
+	new_name_was_edited = true;
+	SongStart::kind     = k;
+	_tabs.set_current_page (0);
+	response (RESPONSE_ACCEPT);
 }
 
 uint32_t
