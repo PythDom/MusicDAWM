@@ -3,9 +3,9 @@
 MusicDAWM is a songwriting and arranging DAW based on [Ardour](https://ardour.org) 9.8.
 This guide covers only what is **specific to MusicDAWM**. Everything that works as in Ardour (editing, mixing, automation, MIDI, export and so on) is described in the [Ardour manual](https://manual.ardour.org).
 
-*Status: 2026-10-24, MusicDAWM 0.1.0 (work packages WP1, WP3, WP5, WP6, WP9).*
+*Status: 2026-11-01, MusicDAWM 0.2.0 (work packages WP1–WP7 and WP9, reference matching R1, vocal presets R5).*
 
-> **What exists today.** MusicDAWM is Ardour 9.8 under its own name (§4), packaged as a portable Windows folder, with Drum Studio (§6), DAWproject import (§7), Waveform and Cubase migration (§8), Melodyne through ARA (§9, on hold: see there) the Tap Tempo Map (§10) and the Final Mix window (§11). §12 lists what is still to come.
+> **What exists today.** MusicDAWM is Ardour 9.8 under its own name (§4), packaged as a portable Windows folder, with Drum Studio (§6), DAWproject import (§7), Waveform and Cubase migration (§8), Melodyne through ARA (§9, on hold: see there) the Tap Tempo Map (§10), the Final Mix window (§11) and the start screen with the songwriter layout (§12). §13 lists what is still to come.
 
 ## 1. Getting the program
 
@@ -22,7 +22,7 @@ MusicDAWM is a portable folder: there is no installer, and nothing is written ou
 
 Start **`bin\MusicDAWM.exe`**. You can make a shortcut to it (right-click → Send to → Desktop). **Help → About** shows the MusicDAWM version and the Ardour version it is based on.
 
-On the first start you get Ardour's welcome dialog (GUI scaling, then a few preferences). Then comes the **Audio/MIDI Setup** dialog:
+On the first start you get Ardour's welcome dialog (GUI scaling, then a few preferences). Then comes the start screen (§12): choose what to do, and when you open or create a song the **Audio/MIDI Setup** dialog appears:
 
 | Setting | Choose |
 |---|---|
@@ -284,13 +284,52 @@ Everything the window does is made of ordinary plug-ins and sends, named "Final 
 
 They appear with MusicDAWM's generic controls (sliders), not their own graphic windows.
 
-## 12. Coming next
+## 12. Starting a song: the start screen and the songwriter layout
+
+### The start screen
+
+When MusicDAWM starts (and with **Session > New** or **Session > Open**) it shows **START**, a page with what you usually want:
+
+| Button | What it does |
+|---|---|
+| **New song from WAV files…** | Makes a song from a set of WAV files, for example the takes of a Zoom R8 project. See below. |
+| **Open a song…** | Browse to a song (an `.ardour` file). |
+| **Recent songs** | The list of songs you opened recently. |
+| **Bring a song from another program: DAWproject… / Waveform… / Cubase…** | Creates a new, empty song named "Imported" and the date, then opens the importer of §7 or §8. Rename the song later with **Session > Rename** if you like. |
+| **New empty song** | Ardour's new-session page, with all its options (name, folder, template, sample rate). |
+
+The **RECENT**, **OPEN** and **NEW** tabs on the left are Ardour's own pages, unchanged.
+
+### New song from WAV files (Zoom R8)
+
+1. Copy the project folder from the R8's SD card to the PC (for example `PROJ003`, with its `AUDIO` folder inside).
+2. Click **New song from WAV files…**, go into the `AUDIO` folder and select all the takes (**Ctrl+A**), or just select the folder itself. Click **Make the song**.
+3. The song is created in the folder shown on the **NEW** page (normally `Documents`), named after the project folder (`PROJ003`; a number is added if that name exists). If you then want another name: **Session > Rename**.
+4. You get **one track per file**, named after the file: leading numbers and `_` are removed, so `01_Guitar_L.WAV` becomes "Guitar L". Mono files make mono tracks, stereo files stereo tracks.
+5. **Each take is placed where it was recorded.** The R8 writes a time stamp into every WAV file (Broadcast WAV). MusicDAWM puts the earliest take at the start of the song and every other take at the same distance from it as on the recorder, to the sample. A summary tells you how many tracks were made, and which files had to be converted or had no time stamp.
+
+Good to know:
+- The files are **copied** into the song's folder; the files on the card or in your copy are not changed.
+- A file at another sample rate than the song (for example 44.1 kHz in a 48 kHz song) is converted with the best-quality converter. The song gets the sample rate chosen in the Audio/MIDI Setup (§2), so choose the R8's rate there (44.1 or 48 kHz) to avoid converting.
+- A WAV file without a time stamp (for example from another program) is placed at the start of the song.
+- Files that cannot be read (not audio, damaged) are listed in the summary and skipped.
+- This works for any WAV files, not only the R8's.
+
+### The songwriter layout: recording controls hidden
+
+MusicDAWM does not record: you record on the Zoom R8 and bring the takes in. So the controls that are only needed for recording are hidden:
+- the **Record** button in the transport bar, the **Punch In/Out** buttons and the **Rec:** (layering) mode;
+- the **Rec** page button (top right);
+- the **record-arm** button on each track and the **In / Disk** monitoring buttons in the mixer strips.
+
+To get them back, tick **View > Show Recording Controls**; untick it to hide them again. The choice is kept the next time you start. Keyboard shortcuts for recording still work.
+
+## 13. Coming next
 
 None of these are available yet. Each work package adds its section to this guide when it ships.
 
 | Feature | What it will do for you | Work package |
 |---|---|---|
-| Songwriter layout and start screen | Recording controls hidden; "New song from WAV files" imports your Zoom R8 tracks aligned in one step | WP2 |
 | CLAP plugins | Load CLAP plugins such as Surge XT | WP8 |
 
 ## Appendix: command-line tools in `bin`
