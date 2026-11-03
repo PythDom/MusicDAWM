@@ -324,13 +324,13 @@ TapTempoWindow::detect ()
 	string note;
 	if (!taps.empty ()) {
 		/* the first tap marks a bar start: the beat nearest to it */
-		size_t near = 0;
+		size_t closest = 0;
 		for (size_t i = 0; i < _detected.beats.size (); ++i) {
-			if (std::llabs (_detected.beats[i] - taps.front ()) < std::llabs (_detected.beats[near] - taps.front ())) {
-				near = i;
+			if (std::llabs (_detected.beats[i] - taps.front ()) < std::llabs (_detected.beats[closest] - taps.front ())) {
+				closest = i;
 			}
 		}
-		_detected.downbeat = (int)(near % opt.beats_per_bar);
+		_detected.downbeat = (int)(closest % opt.beats_per_bar);
 		note               = _(" Bar starts taken from your first tap.");
 	} else if (!_detected.downbeat_sure) {
 		note = _(" The bar starts were hard to tell: check that bar 1 starts where it should, and use \"Bar 1 one beat earlier/later\" if not.");
