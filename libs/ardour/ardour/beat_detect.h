@@ -11,7 +11,12 @@
  *     Programming", 2007): the sequence of beats through the strongest
  *     onsets with intervals close to the period, so it follows a song played
  *     without a click.
- * Added for MusicDAWM:
+ * Added for MusicDAWM (D-054; the first and third also went back to RunBPM):
+ *  -  the beat period is local: chosen per 8 s window along a smooth path
+ *     (Viterbi), so the tracking follows a big drift or a tempo jump;
+ *  -  the octave also from the beats: beats alternating strong and weak in
+ *     the bass are subdivisions (a slow song with eighth-note hi-hats);
+ *  -  each beat between frames (the onset peak, refined by a parabola);
  *  4. the first beat of the bar: of the possible positions in the bar, the
  *     one whose beats carry the most bass accent and the most change of
  *     sound (chords and parts change on downbeats);
@@ -78,6 +83,7 @@ public:
 	static Envelope envelope (float const* mono, samplecnt_t n, samplecnt_t sample_rate);
 	static double   tempo (Envelope const&, Options const&, double& other_bpm, double& confidence);
 	static std::vector<int> track (Envelope const&, double bpm);
+	static std::vector<double> local_period (Envelope const&, double bpm);
 };
 
 } /* namespace ARDOUR */

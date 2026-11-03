@@ -7,7 +7,9 @@
  * two-bar break. Each must give the tempo, every beat to within a few
  * milliseconds, the first beat of the bar and the break as unsure; on
  * tracks (drums and chords on two tracks, mixed); and as a tempo map whose
- * bars fall on the real bars.
+ * bars fall on the real bars. Harder cases: a drift from 80 to 120, a jump
+ * from 100 to 128, loose playing, an acoustic guitar alone, a ballad at 66
+ * with hi-hat eighths.
  *
  * Usage: <prefix>-beat_detect_test <session-dir>
  *
@@ -85,7 +87,7 @@ struct Song {
 };
 
 static Song
-make_song (vector<double> const& beats, double seconds, int break0 = -1, int break1 = -1)
+make_song (vector<double> const& beats, double seconds, int break0 = -1, int break1 = -1, double jitter = 0, bool acoustic = false)
 {
 	samplecnt_t const n = (samplecnt_t)(seconds * SR);
 	Song              s;
@@ -93,12 +95,32 @@ make_song (vector<double> const& beats, double seconds, int break0 = -1, int bre
 	s.chords.assign (n, 0.f);
 	std::mt19937                      rng (7);
 	std::uniform_real_distribution<float> noise (-1.f, 1.f);
+	std::normal_distribution<double>      late (0.0, jitter > 0 ? jitter : 1e-9);
 	auto in_break = [&] (int i) { return i >= break0 && i < break1; };
 
 	for (size_t i = 0; i < beats.size (); ++i) {
 		int const         pos = (i + PICKUP) % 4;
-		samplepos_t const p   = (samplepos_t)std::llround (beats[i] * SR);
+		samplepos_t const p0  = (samplepos_t)std::llround (beats[i] * SR);
+		/* a human player: each hit a little early or late */
+		samplepos_t const p   = std::max<samplepos_t> (0, p0 + (samplepos_t)std::llround ((jitter > 0 ? late (rng) : 0) * SR));
 		double const      len = (i + 1 < beats.size () ? beats[i + 1] - beats[i] : 0.5);
+		if (acoustic && !in_break (i)) {
+			/* a strummed guitar on every beat, the downbeat a little louder */
+			static double const roots[] = { 110.0, 146.83, 130.81, 98.0 };
+			double const        f       = roots[((i + PICKUP) / 4) % 4];
+			float const         acc     = pos == 0 ? 1.f : 0.7f;
+			samplepos_t const   e       = p + (samplepos_t)(len * SR);
+			for (samplepos_t k = p; k < e && k < n; ++k) {
+				double const t   = (k - p) / double (SR);
+				float const  env = (float)std::min (1.0, t / 0.015) * expf (-(float)t / 0.4f);
+				float        v   = 0;
+				for (int h = 1; h <= 6; ++h) {
+					v += sinf (2 * M_PI * f * h * (h == 3 ? 1.5 / 3 * 3 : 1) * t) / h;
+				}
+				s.chords[k] += 0.2f * acc * env * v + (t < 0.02 ? 0.05f * acc * noise (rng) : 0.f);
+			}
+			continue;
+		}
 		if (!in_break (i)) {
 			if (pos == 0 || pos == 2) { /* kick */
 				for (int k = 0; k < SR * 0.15 && p + k < n; ++k) {
@@ -250,7 +272,7 @@ main (int argc, char* argv[])
 		check (r.ok && std::fabs (r.bpm - 120) < 0.2, "tempo 120");
 		check (r.confidence > 0.5, "a clear pulse");
 		check (r.beats.size () >= 80 && r.beats.size () <= 83, "every beat found");
-		check (m.rms < 0.008 && m.max < 0.02, "beats within a few ms");
+		check (m.rms < 0.004 && m.max < 0.008, "beats within a few ms");
 		check (m.downbeat_right && r.downbeat_sure, "the first beat of the bar found (after a two-beat pickup), and sure");
 		check (r.unsure.empty (), "nothing unsure");
 
@@ -285,6 +307,55 @@ main (int argc, char* argv[])
 			break_found |= u.first / double (SR) >= truth[br0] - 0.1 && u.second / double (SR) <= truth[br1 - 1] + 0.1 && u.second > u.first;
 		}
 		check (break_found, "the break is reported as unsure");
+	}
+
+	/* ---- harder cases ---- */
+	{
+		struct Case {
+			char const* name;
+			vector<double> truth;
+			double jitter;
+			bool acoustic;
+		};
+		vector<double> step = true_beats (1.0, 64, 100, 100);
+		for (double t : true_beats (step.back () + 0.6, 64, 128, 128)) {
+			step.push_back (t);
+		}
+		vector<Case> cases = {
+			{ "big drift 80 -> 120", true_beats (1.0, 160, 80, 120), 0, false },
+			{ "a jump 100 -> 128", step, 0, false },
+			{ "loose playing (20 ms)", true_beats (1.0, 120, 96, 104), 0.020, false },
+			{ "acoustic guitar alone", true_beats (1.0, 120, 92, 100), 0.010, true },
+			{ "slow ballad 66", true_beats (1.0, 80, 64, 68), 0.010, false },
+		};
+		for (auto const& c : cases) {
+			Song const    sg = make_song (c.truth, c.truth.back () + 2, -1, -1, c.jitter, c.acoustic);
+			vector<float> mix (sg.drums.size ());
+			for (size_t k = 0; k < mix.size (); ++k) {
+				mix[k] = sg.drums[k] + sg.chords[k];
+			}
+			BeatDetect::Result const r = BeatDetect::analyse (mix.data (), mix.size (), SR, BeatDetect::Options ());
+			Match const              m = match (r, c.truth);
+			int                      within = 0;
+			for (auto b : r.beats) {
+				double const t  = b / double (SR);
+				auto         it = std::lower_bound (c.truth.begin (), c.truth.end (), t);
+				double       d  = 1;
+				if (it != c.truth.end ()) {
+					d = *it - t;
+				}
+				if (it != c.truth.begin ()) {
+					d = std::min (d, t - *(it - 1));
+				}
+				within += d < 0.035;
+			}
+			printf ("   %-24s %.1f/min, %zu beats for %zu, %d within 35 ms, rms %.1f ms, bar 1 %s%s\n", c.name, r.bpm, r.beats.size (), c.truth.size (), within,
+			        m.rms * 1000, m.downbeat_right ? "right" : "WRONG", r.downbeat_sure ? "" : " (unsure)");
+			/* loose playing: the beats sit on the hits, which are up to 2-3 x 20 ms off */
+			double const need = c.jitter >= 0.02 ? 0.9 : 0.95;
+			check (r.ok && within >= need * c.truth.size () && std::abs ((int)r.beats.size () - (int)c.truth.size ()) <= 2 && m.downbeat_right,
+			       string_compose ("%1: the beats (%2 of %3 within 35 ms) and bar 1", c.name, within, c.truth.size ()));
+		}
 	}
 
 	/* ---- 3. on tracks, and as the tempo map ---- */

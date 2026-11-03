@@ -29,6 +29,10 @@ double const TIGHTNESS = 100; /* RunBPM: regularity against onsets */
 /* RunBPM: the onset detected at the centre of the analysis window comes
  * about 25 ms after the attack's start (measured on loops with known beats) */
 double const ONSET_OFFSET = 0.025;
+/* weak/strong ratio of alternate beats, in the bass (below 200 Hz), under
+ * which the beat is at half the tempo (0.21 for a ballad with eighth-note
+ * hi-hats tracked at double tempo, 0.52 to 0.8 for songs tracked right) */
+double const ALTERNATE = 0.35;
 
 /* radix-2 FFT in place (RunBPM bpm.ts) */
 void
@@ -195,6 +199,29 @@ peak_near (vector<double> const& v, int f, int r)
 	return m;
 }
 
+/* MusicDAWM: the beat between frames: the onset peak within +-1 frame of
+ * the tracked frame, refined by a parabola through it and its neighbours */
+double
+subframe (vector<double> const& v, int f)
+{
+	int const n = (int)v.size ();
+	int       m = f;
+	for (int k = std::max (0, f - 1); k <= std::min (n - 1, f + 1); ++k) {
+		if (v[k] > v[m]) {
+			m = k;
+		}
+	}
+	if (m <= 0 || m >= n - 1) {
+		return m;
+	}
+	double const a = v[m - 1], b = v[m], c = v[m + 1];
+	double const den = a - 2 * b + c;
+	if (!(b > 0) || std::fabs (den) < 1e-12) {
+		return m;
+	}
+	return m + std::max (-0.5, std::min (0.5, 0.5 * (a - c) / den));
+}
+
 void
 zscore (vector<double>& v)
 {
@@ -339,6 +366,106 @@ BeatDetect::tempo (Envelope const& e, Options const& opt, double& other_bpm, dou
 	return refined;
 }
 
+/* MusicDAWM: the local beat period (frames) at every frame. In windows of
+ * 8 s (1 s apart), each lag within +-35 % of the global period is scored by
+ * its comb (1 to 4 beats), normalised per window; the path of lags through
+ * the windows that scores best while changing smoothly is kept (Viterbi, a
+ * cost for each change of tempo); linear in between. RunBPM tracks with one
+ * period for the whole song, which loses the beat when the tempo moves by
+ * more than ~10 % (a song played without a click, a faster chorus). */
+vector<double>
+BeatDetect::local_period (Envelope const& e, double bpm)
+{
+	size_t const   n      = e.onset.size ();
+	double const   period = 60 * e.fps / bpm;
+	vector<double> per (n, period);
+	int const      win = (int)std::lround (8 * e.fps);
+	int const      hop = std::max (1, (int)std::lround (e.fps));
+	if ((int)n < 2 * win) {
+		return per;
+	}
+	double const   lo = period / 1.35, hi = period * 1.35;
+	size_t const   maxlag = (size_t)ceil (4 * hi) + 2;
+	vector<double> lags;
+	for (double lag = lo; lag <= hi; lag += 0.25) {
+		lags.push_back (lag);
+	}
+	size_t const           L = lags.size ();
+	vector<double>         centre;
+	vector<vector<double>> sc; /* per window, per lag */
+	for (int c = win / 2; c + win / 2 <= (int)n; c += hop) {
+		int const      a = c - win / 2;
+		vector<double> ac (maxlag + 1, 0);
+		for (size_t lag = 1; lag <= maxlag; ++lag) {
+			double s = 0;
+			for (int i = a; i < a + win && i + (int)lag < (int)n; ++i) {
+				s += e.onset[i] * e.onset[i + lag];
+			}
+			ac[lag] = s;
+		}
+		vector<double> row (L, 0);
+		double         mx = 0;
+		for (size_t j = 0; j < L; ++j) {
+			for (int k = 1; k <= 4; ++k) {
+				row[j] += interp (ac, k * lags[j]);
+			}
+			mx = std::max (mx, row[j]);
+		}
+		for (double& v : row) {
+			v = mx > 0 ? std::max (0.0, v / mx) : 0;
+		}
+		centre.push_back (c);
+		sc.push_back (row);
+	}
+	/* Viterbi: a change of tempo by a ratio r between windows costs
+	 * CHANGE * log(r)^2 (3 % costs 0.04 of a window's best score) */
+	double const           CHANGE = 50;
+	size_t const           W      = sc.size ();
+	vector<double>         d (sc[0]);
+	vector<vector<int>>    from (W, vector<int> (L, 0));
+	vector<double>         logl (L);
+	for (size_t j = 0; j < L; ++j) {
+		logl[j] = log (lags[j]);
+	}
+	for (size_t w = 1; w < W; ++w) {
+		vector<double> nd (L);
+		for (size_t j = 0; j < L; ++j) {
+			double best = -1e300;
+			int    arg  = 0;
+			for (size_t i = 0; i < L; ++i) {
+				double const r = logl[j] - logl[i];
+				double const v = d[i] - CHANGE * r * r;
+				if (v > best) {
+					best = v;
+					arg  = (int)i;
+				}
+			}
+			nd[j]      = best + sc[w][j];
+			from[w][j] = arg;
+		}
+		d.swap (nd);
+	}
+	vector<double> path (W);
+	int            j = (int)(std::max_element (d.begin (), d.end ()) - d.begin ());
+	for (size_t w = W; w-- > 0;) {
+		path[w] = lags[j];
+		j       = from[w][j];
+	}
+	for (size_t t = 0; t < n; ++t) {
+		if (t <= centre.front ()) {
+			per[t] = path.front ();
+		} else if (t >= centre.back ()) {
+			per[t] = path.back ();
+		} else {
+			size_t const a = (size_t)((t - centre.front ()) / hop);
+			size_t const b = std::min (a + 1, W - 1);
+			double const f = b > a ? (t - centre[a]) / (centre[b] - centre[a]) : 0;
+			per[t]         = path[a] * (1 - f) + path[b] * f;
+		}
+	}
+	return per;
+}
+
 vector<int>
 BeatDetect::track (Envelope const& e, double bpm)
 {
@@ -359,20 +486,18 @@ BeatDetect::track (Envelope const& e, double bpm)
 	}
 	double const std_ = sqrt (var / n) > 0 ? sqrt (var / n) : 1;
 
-	vector<double> score (n, 0);
-	vector<int>    back (n, -1);
-	int const      minlag = std::max (1, (int)std::lround (period / 2));
-	int const      maxlag = (int)std::lround (period * 2);
-	vector<double> cost (maxlag + 1, 0);
-	for (int lag = minlag; lag <= maxlag; ++lag) {
-		double const l = log (lag / period);
-		cost[lag]      = -TIGHTNESS * l * l;
-	}
+	vector<double> const per = local_period (e, bpm);
+	vector<double>       score (n, 0);
+	vector<int>          back (n, -1);
 	for (size_t t = 0; t < n; ++t) {
-		double best = -1e300;
-		int    arg  = -1;
+		double const p      = per[t];
+		int const    minlag = std::max (1, (int)std::lround (p / 2));
+		int const    maxlag = (int)std::lround (p * 2);
+		double       best   = -1e300;
+		int          arg    = -1;
 		for (int lag = minlag; lag <= maxlag && (long)t - lag >= 0; ++lag) {
-			double const s = score[t - lag] + cost[lag];
+			double const l = log (lag / p);
+			double const s = score[t - lag] - TIGHTNESS * l * l;
 			if (s > best) {
 				best = s;
 				arg  = (int)t - lag;
@@ -383,7 +508,7 @@ BeatDetect::track (Envelope const& e, double bpm)
 	}
 	/* the last beat: the best score within the last period */
 	size_t end = n - 1;
-	for (size_t t = n > (size_t)period ? n - (size_t)std::lround (period) : 0; t < n; ++t) {
+	for (size_t t = n > (size_t)per.back () ? n - (size_t)std::lround (per.back ()) : 0; t < n; ++t) {
 		if (score[t] > score[end]) {
 			end = t;
 		}
@@ -413,13 +538,36 @@ BeatDetect::analyse (float const* mono, samplecnt_t n, samplecnt_t sr, Options c
 	}
 	Envelope const e = envelope_ds (ds.data (), ds.size (), sr / double (factor));
 
-	double const bpm = tempo (e, opt, r.other_bpm, r.confidence);
+	double bpm = tempo (e, opt, r.other_bpm, r.confidence);
 	if (!(bpm > 0)) {
 		return r;
 	}
-	vector<int> const frames = track (e, bpm);
+	vector<int> frames = track (e, bpm);
 	if (frames.size () < 4) {
 		return r;
+	}
+	/* MusicDAWM: the octave, from the beats themselves (not when the user's
+	 * taps decided it). Beats that alternate strong and weak in the bass are subdivisions
+	 * of a beat at half the tempo (a hi-hat in eighths over a slow song). */
+	if (!(opt.prefer_bpm > 0) && bpm / 2 >= opt.min_bpm) {
+		vector<double> even, odd;
+		for (size_t i = 0; i < frames.size (); ++i) {
+			(i % 2 ? odd : even).push_back (peak_near (e.bass, frames[i], 2));
+		}
+		auto median = [] (vector<double> v) {
+			std::sort (v.begin (), v.end ());
+			return v.empty () ? 0.0 : v[v.size () / 2];
+		};
+		double const me = median (even), mo = median (odd);
+		double const ratio = std::min (me, mo) / std::max (1e-12, std::max (me, mo));
+		if (ratio < ALTERNATE) {
+			r.other_bpm = bpm;
+			bpm /= 2;
+			frames = track (e, bpm);
+			if (frames.size () < 4) {
+				return r;
+			}
+		}
 	}
 	/* the first beats may fall before the music (an intro): keep only
 	 * beats from the first clear onset on */
@@ -445,7 +593,7 @@ BeatDetect::analyse (float const* mono, samplecnt_t n, samplecnt_t sr, Options c
 	}
 
 	for (int f : fr) {
-		double const t = e.frame0 + f / e.fps;
+		double const t = e.frame0 + subframe (e.onset, f) / e.fps;
 		r.beats.push_back (origin + (samplepos_t)std::llround (t * sr));
 	}
 

@@ -105,3 +105,17 @@ In the program (Xvfb, the test's session with a Drums and a Chords track): the d
 Limits: tested on synthetic songs; to try on real songs (acceptance below). Odd meters (6/8) are detected at the pulse found, so the bar lines may need the correction or taps. MIDI tracks cannot be listened to.
 
 Acceptance: on a Zoom R8 song, tick the drums (or drums + bass + guitar), Detect, check the bar lines against what you hear and the "1" of each bar; correct with the buttons if needed; try a song with a break and one at a slow tempo (half/double).
+
+### Improvements, 2026-11-03 (D-054)
+
+| Case (synthetic, drums + chords unless said) | Before | After |
+|---|---|---|
+| Steady 120: beat error | rms 4.4 ms, max 9.7 ms | rms 2.7 ms, max 5.1 ms |
+| Drift 80 → 120 over 160 beats | 129 of 160 beats within 35 ms, rms 124 ms, bar 1 wrong | 160 of 160, rms 2.5 ms, bar 1 right |
+| Jump 100 → 128 | 80 of 128, rms 99 ms | 128 of 128, rms 2.6 ms |
+| Loose playing (hits ±20 ms) | 115 of 120 | 114 of 120 (the beats sit on the hits) |
+| Acoustic guitar alone, 92 → 100 | 119 of 120 | 119 of 120 |
+| Ballad at 66, hi-hat eighths | found at 132, bar 1 wrong | 66.0, 80 of 80, bar 1 right |
+| Tempo map bars 1–30 | rms 4.2 ms | rms 2.0 ms |
+
+The local period and the sub-frame beats were also put into RunBPM (`src/core/beats.ts`); the octave rule was not (RunBPM prefers the faster octave for running).
