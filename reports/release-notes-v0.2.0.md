@@ -23,6 +23,7 @@ The user guide (`docs/user-guide.md` in the repository) covers setup and each fe
 
 Fixes:
 - Loudness normalisation and Ardour's loudness analysis were missing from the 0.1.0 zip (the Vamp analysis plug-ins were not where the program looks for them).
+- **Crash when moving Drum Studio cue markers** (or stopping or jumping after them) in a song that has other tracks: Drum Studio uses more cues than an ordinary track has clip slots, and Ardour's catch-up code read past the end of those tracks' slots. Those cues are now skipped for tracks that don't have them, as normal playback already did.
 - No sound while the Final Mix window was open; a crash at closing or reopening a song after using the Final Mix window or a plug-in whose saved state file was missing.
 
 ## Known issues

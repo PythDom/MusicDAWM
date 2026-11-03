@@ -39,6 +39,7 @@
 
 #include "temporal/tempo.h"
 
+#include "ardour/audio_track.h"
 #include "ardour/drum_studio.h"
 #include "ardour/location.h"
 #include "ardour/midi_model.h"
@@ -280,8 +281,19 @@ main (int argc, char* argv[])
 	printf ("   recorded: %s\n   expected: %s\n", describe (got).c_str (), describe (want).c_str ());
 	check (got == want, "switches recorded as cue markers on the right bars, fill returned to the verse");
 
-	/* 5. replay: watch which slot plays */
+	/* 5. replay: watch which slot plays. An ordinary track is added first:
+	 * its cue box has fewer slots than Drum Studio's cues use, and stopping
+	 * after such a cue used to crash (TriggerBox::fast_forward) */
 	printf ("-- replay\n");
+	{
+		std::list<std::shared_ptr<AudioTrack>> other = s->new_audio_track (1, 2, 0, 1, "Guitar", PresentationInfo::max_order, Normal, true);
+		int top = 0;
+		for (auto const& [pos, cue] : want) {
+			top = std::max (top, cue);
+		}
+		check (!other.empty () && other.front ()->triggerbox () && !other.front ()->triggerbox ()->trigger (top),
+		       string_compose ("an ordinary track whose cue box is smaller than the highest cue (%1)", top));
+	}
 	perf.reset ();
 	s->request_locate (0, false, MustStop);
 	Glib::usleep (300000);

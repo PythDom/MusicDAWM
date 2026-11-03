@@ -4205,6 +4205,14 @@ TriggerBox::fast_forward (CueEvents const & cues, samplepos_t transport_position
 				break;
 			}
 
+			/* MusicDAWM: a cue may be beyond this box's slots (Drum
+			 * Studio uses more cues than an ordinary track has
+			 * slots); like ::process(), ignore it here */
+			if (c->cue < 0 || c->cue >= (int32_t) all_triggers.size ()) {
+				++c;
+				continue;
+			}
+
 			if (!all_triggers[c->cue]->cue_isolated()) {
 				DEBUG_TRACE (DEBUG::Triggers, string_compose ("Found first non-CI cue for %1 at %2\n", c->cue, c->time));
 				break;
@@ -4698,6 +4706,9 @@ TriggerBox::clear_all_triggers ()
 void
 TriggerBox::clear_cue (int cue)
 {
+	if (cue < 0 || cue >= (int) all_triggers.size ()) {
+		return;
+	}
 	all_triggers[cue]->set_region (std::shared_ptr<Region>());
 }
 
