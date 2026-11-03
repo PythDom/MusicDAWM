@@ -22,17 +22,17 @@ using std::vector;
 
 namespace {
 
-int const    FRAME = 1024;
-int const    HOP   = 128;
-int const    NBANDS = 12;
-double const TIGHTNESS = 100; /* RunBPM: regularity against onsets */
+int const    bd_frame = 1024;
+int const    bd_hop   = 128;
+int const    bd_nbands = 12;
+double const bd_tightness = 100; /* RunBPM: regularity against onsets */
 /* RunBPM: the onset detected at the centre of the analysis window comes
  * about 25 ms after the attack's start (measured on loops with known beats) */
-double const ONSET_OFFSET = 0.025;
+double const bd_onset_offset = 0.025;
 /* weak/strong ratio of alternate beats, in the bass (below 200 Hz), under
  * which the beat is at half the tempo (0.21 for a ballad with eighth-note
  * hi-hats tracked at double tempo, 0.52 to 0.8 for songs tracked right) */
-double const ALTERNATE = 0.35;
+double const bd_alternate = 0.35;
 
 /* radix-2 FFT in place (RunBPM bpm.ts) */
 void
@@ -104,30 +104,30 @@ BeatDetect::Envelope
 envelope_ds (float const* x, size_t n, double rate)
 {
 	BeatDetect::Envelope e;
-	e.fps    = rate / HOP;
-	e.frame0 = (FRAME / 2) / rate + ONSET_OFFSET;
-	if (n < (size_t)FRAME) {
+	e.fps    = rate / bd_hop;
+	e.frame0 = (bd_frame / 2) / rate + bd_onset_offset;
+	if (n < (size_t)bd_frame) {
 		return e;
 	}
-	size_t const frames = (n - FRAME) / HOP + 1;
-	vector<double> win (FRAME);
-	for (int i = 0; i < FRAME; ++i) {
-		win[i] = 0.5 - 0.5 * cos (2 * M_PI * i / FRAME);
+	size_t const frames = (n - bd_frame) / bd_hop + 1;
+	vector<double> win (bd_frame);
+	for (int i = 0; i < bd_frame; ++i) {
+		win[i] = 0.5 - 0.5 * cos (2 * M_PI * i / bd_frame);
 	}
-	int const maxbin  = std::min (FRAME / 2, (int)std::lround (5000.0 / rate * FRAME));
-	int const bassbin = std::max (2, (int)std::lround (200.0 / rate * FRAME));
+	int const maxbin  = std::min (bd_frame / 2, (int)std::lround (5000.0 / rate * bd_frame));
+	int const bassbin = std::max (2, (int)std::lround (200.0 / rate * bd_frame));
 	/* 12 log-spaced bands, 60 Hz .. 5 kHz */
-	vector<int> edge (NBANDS + 1);
-	for (int b = 0; b <= NBANDS; ++b) {
-		double const f = 60.0 * pow (5000.0 / 60.0, b / double (NBANDS));
-		edge[b]        = std::max (1, std::min (maxbin, (int)std::lround (f / rate * FRAME)));
+	vector<int> edge (bd_nbands + 1);
+	for (int b = 0; b <= bd_nbands; ++b) {
+		double const f = 60.0 * pow (5000.0 / 60.0, b / double (bd_nbands));
+		edge[b]        = std::max (1, std::min (maxbin, (int)std::lround (f / rate * bd_frame)));
 	}
-	vector<double> re (FRAME), im (FRAME), prev (maxbin, 0), cur (maxbin, 0);
+	vector<double> re (bd_frame), im (bd_frame), prev (maxbin, 0), cur (maxbin, 0);
 	vector<double> flux (frames), bass (frames);
-	e.bands.assign (frames, vector<float> (NBANDS, 0.f));
+	e.bands.assign (frames, vector<float> (bd_nbands, 0.f));
 	for (size_t f = 0; f < frames; ++f) {
-		size_t const off = f * HOP;
-		for (int i = 0; i < FRAME; ++i) {
+		size_t const off = f * bd_hop;
+		for (int i = 0; i < bd_frame; ++i) {
 			re[i] = x[off + i] * win[i];
 			im[i] = 0;
 		}
@@ -146,7 +146,7 @@ envelope_ds (float const* x, size_t n, double rate)
 				}
 			}
 		}
-		for (int b = 0; b < NBANDS; ++b) {
+		for (int b = 0; b < bd_nbands; ++b) {
 			double s = 0;
 			for (int k = edge[b]; k < std::max (edge[b] + 1, edge[b + 1]); ++k) {
 				s += cur[k];
@@ -418,8 +418,8 @@ BeatDetect::local_period (Envelope const& e, double bpm)
 		sc.push_back (row);
 	}
 	/* Viterbi: a change of tempo by a ratio r between windows costs
-	 * CHANGE * log(r)^2 (3 % costs 0.04 of a window's best score) */
-	double const           CHANGE = 50;
+	 * bd_change * log(r)^2 (3 % costs 0.04 of a window's best score) */
+	double const           bd_change = 50;
 	size_t const           W      = sc.size ();
 	vector<double>         d (sc[0]);
 	vector<vector<int>>    from (W, vector<int> (L, 0));
@@ -434,7 +434,7 @@ BeatDetect::local_period (Envelope const& e, double bpm)
 			int    arg  = 0;
 			for (size_t i = 0; i < L; ++i) {
 				double const r = logl[j] - logl[i];
-				double const v = d[i] - CHANGE * r * r;
+				double const v = d[i] - bd_change * r * r;
 				if (v > best) {
 					best = v;
 					arg  = (int)i;
@@ -497,7 +497,7 @@ BeatDetect::track (Envelope const& e, double bpm)
 		int          arg    = -1;
 		for (int lag = minlag; lag <= maxlag && (long)t - lag >= 0; ++lag) {
 			double const l = log (lag / p);
-			double const s = score[t - lag] - TIGHTNESS * l * l;
+			double const s = score[t - lag] - bd_tightness * l * l;
 			if (s > best) {
 				best = s;
 				arg  = (int)t - lag;
@@ -560,7 +560,7 @@ BeatDetect::analyse (float const* mono, samplecnt_t n, samplecnt_t sr, Options c
 		};
 		double const me = median (even), mo = median (odd);
 		double const ratio = std::min (me, mo) / std::max (1e-12, std::max (me, mo));
-		if (ratio < ALTERNATE) {
+		if (ratio < bd_alternate) {
 			r.other_bpm = bpm;
 			bpm /= 2;
 			frames = track (e, bpm);
@@ -621,10 +621,10 @@ BeatDetect::analyse (float const* mono, samplecnt_t n, samplecnt_t sr, Options c
 			bass.push_back (peak_near (e.bass, fr[i], 2));
 			/* mean band energies over this beat and the previous one */
 			auto mean_bands = [&] (int a, int b) {
-				vector<double> m (NBANDS, 0);
+				vector<double> m (bd_nbands, 0);
 				int            cnt = 0;
 				for (int f = std::max (0, a); f < std::min ((int)e.bands.size (), b); ++f, ++cnt) {
-					for (int k = 0; k < NBANDS; ++k) {
+					for (int k = 0; k < bd_nbands; ++k) {
 						m[k] += e.bands[f][k];
 					}
 				}
@@ -640,7 +640,7 @@ BeatDetect::analyse (float const* mono, samplecnt_t n, samplecnt_t sr, Options c
 			vector<double> const a = mean_bands (fr[i - 1], fr[i]);
 			vector<double> const b = mean_bands (fr[i], fr[i + 1]);
 			double               d = 0;
-			for (int k = 0; k < NBANDS; ++k) {
+			for (int k = 0; k < bd_nbands; ++k) {
 				d += std::fabs (b[k] - a[k]);
 			}
 			change.push_back (d);
