@@ -80,6 +80,11 @@ jobs:
         run: |
           export TOP="$PWD"; . build/gtk2_ardour/ardev_common_waf.sh
           build/session_utils/musicdawm9-tap_tempo_test "$RUNNER_TEMP/taps"
+      - name: Beat and bar detection test
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          export TOP="$PWD"; . build/gtk2_ardour/ardev_common_waf.sh
+          build/session_utils/musicdawm9-beat_detect_test "$RUNNER_TEMP/beats"
       - name: Final Mix test (bundled x42 plug-ins)
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |

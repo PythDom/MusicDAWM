@@ -26,6 +26,7 @@
 
 #include "pbd/signals.h"
 
+#include "ardour/beat_detect.h"
 #include "ardour/types.h"
 
 #include "ardour_window.h"
@@ -60,6 +61,13 @@ private:
 	Gtk::Button        _clear;
 	Gtk::Button        _apply;
 	Gtk::Label         _status;
+	/* detection (beats and bars from the audio of chosen tracks) */
+	Gtk::VBox                                       _track_box;
+	std::vector<std::pair<Gtk::CheckButton*, std::string>> _track_checks;
+	Gtk::Button                                     _detect;
+	Gtk::Button                                     _earlier;
+	Gtk::Button                                     _later;
+	ARDOUR::BeatDetect::Result                      _detected;
 
 	std::vector<ARDOUR::samplepos_t> _taps; /* earlier takes, merged */
 	std::vector<ARDOUR::samplepos_t> _take; /* the take being tapped */
@@ -71,6 +79,9 @@ private:
 	void clear ();
 	void apply ();
 	void fill_tracks ();
+	void detect ();
+	void apply_detected (std::string const& note);
+	void shift_bar (int beats);
 	void update_status ();
 	std::vector<ARDOUR::samplepos_t> all_taps () const;
 };

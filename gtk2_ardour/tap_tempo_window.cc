@@ -7,11 +7,15 @@
  * (at your option) any later version.
  */
 
+#include <set>
+
+#include <ytkmm/separator.h>
 #include <ytkmm/table.h>
 
 #include "pbd/compose.h"
 
 #include "ardour/audio_track.h"
+#include "ardour/playlist.h"
 #include "ardour/session.h"
 #include "ardour/tap_tempo.h"
 
@@ -50,6 +54,9 @@ TapTempoWindow::TapTempoWindow (PublicEditor& e)
 	, _tap (_("Tap (T)"))
 	, _clear (_("Clear taps"))
 	, _apply (_("Apply to the tempo map"))
+	, _detect (_("Detect beats and bars"))
+	, _earlier (_("Bar 1 one beat earlier"))
+	, _later (_("Bar 1 one beat later"))
 {
 	RadioButton::Group g = _on_beats.get_group ();
 	_on_bars.set_group (g);
@@ -105,13 +112,40 @@ TapTempoWindow::TapTempoWindow (PublicEditor& e)
 
 	_tap.set_size_request (-1, 60);
 	_status.set_alignment (0, 0.5);
+	_status.set_line_wrap (true);
+	_status.set_size_request (420, -1);
 
 	HBox* buttons = manage (new HBox (false, 6));
 	buttons->pack_start (_clear, false, false);
 	buttons->pack_end (_apply, false, false);
 
+	/* MusicDAWM: detection */
+	Label* dhelp = manage (new Label (
+	    _("Or let MusicDAWM find the beats and bars: tick the tracks to listen to (the drums, or several tracks together) and click Detect. "
+	      "If you tapped a few beats first, your taps choose between half and double tempo, and your first tap marks a bar start.")));
+	dhelp->set_line_wrap (true);
+	dhelp->set_size_request (420, -1);
+	dhelp->set_alignment (0, 0.5);
+	Label* listen = manage (new Label (_("Listen to:"), 0.0, 0.5));
+	HBox*  dbuttons = manage (new HBox (false, 6));
+	dbuttons->pack_start (_detect, false, false);
+	dbuttons->pack_start (_earlier, false, false);
+	dbuttons->pack_start (_later, false, false);
+	_earlier.set_sensitive (false);
+	_later.set_sensitive (false);
+	ArdourWidgets::set_tooltip (_detect, _("Find the tempo, every beat and the bar starts in the ticked tracks, and make the tempo map from them (Edit > Undo goes back)"));
+	ArdourWidgets::set_tooltip (_earlier, _("The detected bar starts are one beat late: move them one beat earlier"));
+	ArdourWidgets::set_tooltip (_later, _("The detected bar starts are one beat early: move them one beat later"));
+	VBox* dvb = manage (new VBox (false, 6));
+	dvb->pack_start (*dhelp, false, false);
+	dvb->pack_start (*listen, false, false);
+	dvb->pack_start (_track_box, false, false);
+	dvb->pack_start (*dbuttons, false, false);
+
 	VBox* vb = manage (new VBox (false, 8));
 	vb->set_border_width (10);
+	vb->pack_start (*dvb, false, false);
+	vb->pack_start (*manage (new HSeparator ()), false, false);
 	vb->pack_start (*help, false, false);
 	vb->pack_start (*t, false, false);
 	vb->pack_start (_tap, false, false);
@@ -122,6 +156,9 @@ TapTempoWindow::TapTempoWindow (PublicEditor& e)
 	_tap.signal_clicked ().connect (sigc::mem_fun (*this, &TapTempoWindow::tap));
 	_clear.signal_clicked ().connect (sigc::mem_fun (*this, &TapTempoWindow::clear));
 	_apply.signal_clicked ().connect (sigc::mem_fun (*this, &TapTempoWindow::apply));
+	_detect.signal_clicked ().connect (sigc::mem_fun (*this, &TapTempoWindow::detect));
+	_earlier.signal_clicked ().connect (sigc::bind (sigc::mem_fun (*this, &TapTempoWindow::shift_bar), -1));
+	_later.signal_clicked ().connect (sigc::bind (sigc::mem_fun (*this, &TapTempoWindow::shift_bar), 1));
 
 	update_status ();
 	show_all_children ();
@@ -130,6 +167,9 @@ TapTempoWindow::TapTempoWindow (PublicEditor& e)
 
 TapTempoWindow::~TapTempoWindow ()
 {
+	for (auto const& tc : _track_checks) {
+		delete tc.first;
+	}
 	if (_instance == this) {
 		_instance = 0;
 	}
@@ -144,7 +184,11 @@ TapTempoWindow::set_session (Session* s)
 	_take.clear ();
 	if (s) {
 		s->TransportStateChange.connect (_session_connections, invalidator (*this), std::bind (&TapTempoWindow::transport_state_changed, this), gui_context ());
+		s->RouteAdded.connect (_session_connections, invalidator (*this), std::bind (&TapTempoWindow::fill_tracks, this), gui_context ());
 	}
+	_detected = BeatDetect::Result ();
+	_earlier.set_sensitive (false);
+	_later.set_sensitive (false);
 	fill_tracks ();
 	update_status ();
 }
@@ -162,6 +206,189 @@ TapTempoWindow::fill_tracks ()
 		}
 	}
 	_snap_track.set_active (0);
+
+	/* the tracks to listen to: ticked as before; the first time, the drums */
+	std::set<string> ticked;
+	for (auto const& tc : _track_checks) {
+		if (tc.first->get_active ()) {
+			ticked.insert (tc.second);
+		}
+		_track_box.remove (*tc.first);
+		delete tc.first;
+	}
+	bool const first_time = _track_checks.empty ();
+	_track_checks.clear ();
+	if (!_session) {
+		return;
+	}
+	for (auto const& r : *_session->get_routes ()) {
+		if (!std::dynamic_pointer_cast<AudioTrack> (r)) {
+			continue;
+		}
+		CheckButton* cb = new CheckButton (r->name ());
+		gchar*       l  = g_utf8_strdown (r->name ().c_str (), -1);
+		string const lower (l);
+		g_free (l);
+		bool const drums = lower.find ("drum") != string::npos || lower.find ("batter") != string::npos || lower.find ("perc") != string::npos
+		                   || lower.find ("kick") != string::npos || lower.find ("beat") != string::npos;
+		cb->set_active (first_time ? drums : ticked.count (r->name ()) > 0);
+		_track_box.pack_start (*cb, false, false);
+		cb->show ();
+		_track_checks.push_back (std::make_pair (cb, r->name ()));
+	}
+	if (first_time) {
+		bool any = false;
+		for (auto const& tc : _track_checks) {
+			any |= tc.first->get_active ();
+		}
+		/* no drum track: all of them together */
+		for (auto const& tc : _track_checks) {
+			if (!any) {
+				tc.first->set_active (true);
+			}
+		}
+	}
+}
+
+void
+TapTempoWindow::detect ()
+{
+	if (!_session) {
+		return;
+	}
+	end_take ();
+	vector<std::shared_ptr<Track>> tracks;
+	for (auto const& tc : _track_checks) {
+		if (tc.first->get_active ()) {
+			if (std::shared_ptr<Track> t = std::dynamic_pointer_cast<Track> (_session->route_by_name (tc.second))) {
+				tracks.push_back (t);
+			}
+		}
+	}
+	if (tracks.empty ()) {
+		_status.set_text (_("Tick at least one track to listen to."));
+		return;
+	}
+
+	/* the whole song: the session range, or the tracks' regions */
+	samplepos_t start = _session->current_start_sample ();
+	samplepos_t end   = _session->current_end_sample ();
+	if (end <= start) {
+		start = max_samplepos;
+		end   = 0;
+		for (auto const& t : tracks) {
+			std::shared_ptr<RegionList> const rl = t->playlist ()->region_list ();
+			for (auto const& r : *rl) {
+				start = std::min (start, r->position_sample ());
+				end   = std::max (end, r->position_sample () + r->length_samples ());
+			}
+		}
+	}
+	if (end <= start) {
+		_status.set_text (_("The ticked tracks have no audio."));
+		return;
+	}
+
+	TapTempo::Options topt;
+	topt.unit              = _on_bars.get_active () ? TapTempo::Bars : TapTempo::Beats;
+	topt.divisions_per_bar = (int)_divisions.get_value ();
+
+	BeatDetect::Options opt;
+	opt.beats_per_bar = topt.divisions_per_bar;
+	/* the user's taps, if any: their tempo chooses the octave */
+	vector<samplepos_t> const taps = _taps;
+	if (taps.size () >= 3) {
+		vector<samplecnt_t> iv;
+		for (size_t i = 1; i < taps.size (); ++i) {
+			iv.push_back (taps[i] - taps[i - 1]);
+		}
+		std::sort (iv.begin (), iv.end ());
+		opt.prefer_bpm = TapTempo::tempo_for (iv[iv.size () / 2], _session->sample_rate (), topt); /* beats per minute */
+	}
+
+	_status.set_text (_("Listening to the tracks..."));
+	{
+		PublicEditor::CursorRAII cr (_editor, _editor.cursors ()->wait);
+		while (gtk_events_pending ()) {
+			gtk_main_iteration ();
+		}
+		_detected = BeatDetect::analyse_tracks (*_session, tracks, start, end, opt);
+	}
+	if (!_detected.ok) {
+		_earlier.set_sensitive (false);
+		_later.set_sensitive (false);
+		_status.set_text (_("No steady beat found in the ticked tracks (they need at least 8 seconds of music with a pulse). Tap the beat instead."));
+		return;
+	}
+
+	string note;
+	if (!taps.empty ()) {
+		/* the first tap marks a bar start: the beat nearest to it */
+		size_t near = 0;
+		for (size_t i = 0; i < _detected.beats.size (); ++i) {
+			if (std::llabs (_detected.beats[i] - taps.front ()) < std::llabs (_detected.beats[near] - taps.front ())) {
+				near = i;
+			}
+		}
+		_detected.downbeat = (int)(near % opt.beats_per_bar);
+		note               = _(" Bar starts taken from your first tap.");
+	} else if (!_detected.downbeat_sure) {
+		note = _(" The bar starts were hard to tell: check that bar 1 starts where it should, and use \"Bar 1 one beat earlier/later\" if not.");
+	}
+	_earlier.set_sensitive (true);
+	_later.set_sensitive (true);
+	apply_detected (note);
+}
+
+void
+TapTempoWindow::apply_detected (string const& note)
+{
+	if (!_session || !_detected.ok) {
+		return;
+	}
+	TapTempo::Options opt;
+	opt.unit              = TapTempo::Beats;
+	opt.divisions_per_bar = (int)_divisions.get_value ();
+	opt.note_value        = std::atoi (_note_value.get_active_text ().c_str ());
+	int const bpb         = std::max (1, opt.divisions_per_bar);
+	int const db          = ((_detected.downbeat % bpb) + bpb) % bpb;
+	if ((size_t)db + 2 > _detected.beats.size ()) {
+		return;
+	}
+	vector<samplepos_t> const beats (_detected.beats.begin () + db, _detected.beats.end ());
+	{
+		TempoMapChange tmc (_editor, _("detect tempo map"));
+		TapTempo::apply (tmc.map (), beats, _session->sample_rate (), opt);
+	}
+
+	string msg = string_compose (_("About %1 per minute, %2 beats found (pulse: %3)."), (int)std::lround (_detected.bpm), _detected.beats.size (),
+	                             _detected.confidence > 0.6 ? _("clear") : _detected.confidence > 0.3 ? _("fair") : _("weak"));
+	if (_detected.other_bpm > 0) {
+		msg += string_compose (_(" If the song is really at %1, tap a few beats at that speed and detect again."), (int)std::lround (_detected.other_bpm));
+	}
+	if (!_detected.unsure.empty ()) {
+		Temporal::TempoMap::SharedPtr tm (Temporal::TempoMap::use ());
+		string                        where;
+		for (auto const& u : _detected.unsure) {
+			int const b0 = tm->bbt_at (timepos_t (u.first)).bars;
+			int const b1 = tm->bbt_at (timepos_t (u.second)).bars;
+			where += string_compose (where.empty () ? "%1-%2" : ", %1-%2", b0, b1);
+		}
+		msg += string_compose (_(" No clear beat in bars %1: check the grid there (tap those bars and Apply to fix them)."), where);
+	}
+	msg += note;
+	msg += _(" Edit > Undo goes back to the previous map.");
+	_status.set_text (msg);
+}
+
+void
+TapTempoWindow::shift_bar (int beats)
+{
+	if (!_detected.ok) {
+		return;
+	}
+	_detected.downbeat += beats;
+	apply_detected (beats < 0 ? _(" Bar starts moved one beat earlier.") : _(" Bar starts moved one beat later."));
 }
 
 bool

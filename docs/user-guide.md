@@ -188,6 +188,30 @@ For songs recorded without a click (like your Zoom R8 sessions): tap along while
 
 **Edit → Tempo → Tap Tempo Map…**
 
+### Let MusicDAWM find the beats and bars
+
+At the top of the window, **Listen to:** lists your audio tracks. Tick the ones with a clear beat: the drums alone, or several tracks together (drums + bass + guitar, for example). The first time, tracks whose name contains *drum*, *batterie*, *perc*, *kick* or *beat* are ticked; if there are none, all of them are. Choose the **time signature** below (for example 4/4), then click **Detect beats and bars**.
+
+MusicDAWM listens to the ticked tracks over the whole song (the session range), then:
+- finds the **tempo**, and **every beat**, following the band if it speeds up or slows down (a song played without a click);
+- **guesses which beat is the first of the bar**: the one with the most bass (kick drum, bass notes) and where the chords and parts change;
+- makes the **tempo map** from it, like *Apply* after tapping (one step for **Edit → Undo**).
+
+The window then says the tempo, how many beats were found and how clear the pulse was, and lists the bars with **no clear beat** (a break, a quiet passage) so you can check the grid there.
+
+Correcting:
+- **Bar 1 one beat earlier / later**: if the bar lines are one beat off (the "1" is on the wrong beat), click until the "1" is on the downbeat. Each click makes the map again.
+- **Half or double speed**: the window says which other tempo is possible ("If the song is really at 204…"). Tap 4 to 8 beats at the right speed (see below), then click **Detect** again: your taps choose the speed, and **your first tap marks a bar start**, so tap from a downbeat.
+- A passage that is wrong (the break, an intro without drums): tap just that passage and choose **Keep the tempo map outside the tapped passage**, then **Apply**.
+
+Good to know:
+- Only audio tracks can be listened to. A Drum Studio track is already on the grid.
+- At least 8 seconds of music with a pulse are needed. Very free playing (rubato, no steady beat) is better tapped.
+- The time signature is used for the bar lines: the beats are found at the pulse of the music, so for 6/8 check the result (or tap).
+- The detection comes from RunBPM's tempo detector, adapted for whole songs and bar lines.
+
+### Tapping
+
 1. Choose what you tap on: **every beat** or **every bar start**, and the **time signature** (for example 4/4, 3/4 or 6/8).
 2. Start playback (Space) from a little before the first beat, and **press T** (or click **Tap**) in time with the song. The **first tap starts a bar** (bar 1 when you tap from the beginning), so start tapping on a downbeat; a count-in or silence before it is fine. You do not have to tap the whole song (see *Outside the taps* below).
 3. Stop playback when you are done. Each time the song plays is a **take**: to fix a passage, play it again and tap only that passage; the new taps replace the old ones there.

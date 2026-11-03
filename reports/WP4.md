@@ -85,3 +85,23 @@
 | The break reported | 1 stretch, covering bars 41–44 |
 | No track: the tapped tempo continues (mean of the last 16 intervals) | pass |
 | Keep outside: the tempos before (120 bpm) and after (140 bpm at 100 s) stay, the passage starts on a bar | pass |
+
+## Update 2026-11-03: Detect beats and bars (from RunBPM)
+
+- `ARDOUR::BeatDetect` (`libs/ardour/beat_detect.cc`, D-052): RunBPM's detector ported to C++: spectral-flux onset curve (~11 kHz, 1024/128), tempo by autocorrelation with a 4- then 16-beat comb and a confidence, beats by dynamic programming (Ellis 2007). For MusicDAWM: octave from the user's taps (else nearest 110 per minute, the other one offered), whole-song analysis of one or several tracks mixed (`analyse_tracks`), beats before the music dropped, the first beat of the bar guessed (bass onset + change of sound, D-053), passages without clear beats reported.
+- Window: **Listen to:** (one or several audio tracks; drum-named ones ticked by default), **Detect beats and bars**, **Bar 1 one beat earlier / later**. With taps, the taps choose the octave and the first tap marks a bar start. The map is made with `TapTempo::apply` (one tempo point per beat, one undo step).
+- Test `session_utils/beat_detect_test.cc` (Linux CI and the Windows bundle):
+
+| Check | Result |
+|---|---|
+| Steady 120, drums + chords, two-beat pickup: tempo, beats, bar 1 | 120.00; 82 beats, rms 4.4 ms, max 9.7 ms; bar 1 on the right beat, marked sure; nothing unsure; 0.1 s for 42 s of audio |
+| Taps at about 62 choose half time | 60.00, 120 offered |
+| Played without a click, 96 → 108, a two-bar break | 101.9 average; rms 4.8 ms, max 9.4 ms outside the break; bar 1 right; the break reported (30.45–34.63 s for 30.44–34.62 s) |
+| The same on two tracks mixed / on the drum track alone | same beats and bar 1 / rms 5.0 ms |
+| The tempo map from the beats: bars 1–30 against the real bars | rms 4.2 ms, max 7.2 ms |
+
+In the program (Xvfb, the test's session with a Drums and a Chords track): the drum track ticked by default, Detect makes the map (about 102 per minute, 130 beats, the break listed), Bar 1 one beat later moves the bar lines by one beat.
+
+Limits: tested on synthetic songs; to try on real songs (acceptance below). Odd meters (6/8) are detected at the pulse found, so the bar lines may need the correction or taps. MIDI tracks cannot be listened to.
+
+Acceptance: on a Zoom R8 song, tick the drums (or drums + bass + guitar), Detect, check the bar lines against what you hear and the "1" of each bar; correct with the buttons if needed; try a song with a break and one at a slow tempo (half/double).
