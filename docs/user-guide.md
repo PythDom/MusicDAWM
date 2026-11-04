@@ -116,6 +116,21 @@ After flattening, edit the drums like any MIDI: double-click a region to edit no
 - Switches are timed by the program's display loop. If the program freezes for longer than a beat right before a switch (for example while a plugin window opens), that switch can land one beat late; drag its marker into place.
 - A session with a drum track is an ordinary Ardour session plus a few extra settings that stock Ardour ignores, so it should open in stock Ardour 9.8 without the Drum Studio page. This has not been tested yet.
 
+### More drum kits: DrumGizmo (separate download)
+
+DrumGizmo kits are very realistic multi-microphone acoustic kits (for example *DRSKit*, *CrocellKit*, *MuldjordKit*). They are large (several hundred MB to a few GB each), so they are not in the MusicDAWM zip; you can add them yourself:
+
+1. **The DrumGizmo plug-in:** download it from **drumgizmo.org** (*Downloads*, the 64-bit Windows VST version) and install or unzip it into a folder that MusicDAWM scans for VST plug-ins (**Edit → Preferences → Plugins → VST**: add the folder, then **Scan for Plugins**).
+2. **A kit:** from **drumgizmo.org → Kits**, download one and unzip it somewhere permanent (for example `Documents\DrumGizmo\DRSKit`). Each kit folder has a *kit* file (`.xml`) and one or more *MIDI maps* (`Midimap*.xml`).
+3. **In Drum Studio:** choose **Kit: No instrument**, pick the style and **Create Drum Track**. Then, on the drum track, add the DrumGizmo plug-in (in the Mixer, double-click the empty area of the track's processor box → DrumGizmo).
+4. **In DrumGizmo's window:** load the kit file and the kit's General MIDI map (often called *Midimap_full.xml* or similar). Drum Studio's grooves are General MIDI drum notes (kick 36, snare 38, hi-hats 42/44/46, toms, cymbals), which the GM map plays.
+5. DrumGizmo remembers the kit with the song. The first load of a big kit takes a while and needs memory (check the kit page for its size).
+
+Good to know:
+- DrumGizmo kits are **CC-BY 4.0**: a song released with performer credits must also credit the kit (the kit page says how). The bundled AVL and General MIDI kits need no credit.
+- If some drums are silent or wrong, the kit's MIDI map does not use the General MIDI note numbers for them: choose another map of the kit, or edit the map.
+- MusicDAWM has not been tested with DrumGizmo; tell us how it works for you.
+
 ### Bass Studio: a bass line from your chords
 
 **Window → Bass Studio** opens its page in the Editor's sidebar, next to Drum Studio.

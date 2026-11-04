@@ -8,6 +8,7 @@ Work agreed with the user but deliberately left for later. Each item says what i
 | B-2 | Reference matching R2–R4 (learned matching, Python/PyTorch module, ST-ITO, AFx-Rep) | D-038 | Postponed |
 | B-3 | WP8: CLAP plug-ins | D-038 | Postponed |
 | B-4 | Melodyne / ARA: pitch edits not heard, crashes; diagnostic plan in `reports/WP9.md` | D-037 | On hold |
+| B-5 | **More Drum Studio grooves from the Groove MIDI Dataset** (Google Magenta, CC BY 4.0, ~13 h of real drummers by style): cut performances into 1–2 bar loops, sort them into parts × complexities for a few styles (e.g. funk, jazz, latin, hip-hop), credit the source. A few days, mostly curation by ear. | User, 2026-11-04 | On hold (user, 2026-11-04) |
 
 ## B-1. Tap Tempo Map: extrapolation to the whole song
 
