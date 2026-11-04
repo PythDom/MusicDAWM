@@ -1,9 +1,12 @@
 /*
  * MusicDAWM WP2: "New song from WAV files" test, headless.
  *
- * Takes as a Zoom R8 writes them (BWF, a time stamp per take): mono and
- * stereo, one at 44.1 kHz in a 48 kHz song, one without a time stamp. Each
- * becomes a track named after the file, at its recorded position.
+ * Takes as a multitrack recorder writes them: mono and stereo, one at
+ * 44.1 kHz in a 48 kHz song. Each becomes a track named after the file.
+ * By default every file starts at the start of the song (the Zoom R8 and
+ * the Korg SR-1 write their files from the song's start); with the time
+ * stamp option, files with a BWF time stamp go to their recorded position,
+ * those without one (or with a stamp of 0, as the Korg writes) to the start.
  *
  * Usage: <prefix>-song_import_test <session-dir>
  *
@@ -107,6 +110,7 @@ main (int argc, char* argv[])
 	write_take (card, "03 Vocal take.wav", SR, 2, 2, 11.5);
 	write_take (card, "04-Bass.wav", 44100, 1, 4, 10.25);
 	write_take (card, "05 Tambourine.wav", SR, 1, 1, -1); /* no time stamp */
+	write_take (card, "06 Korg take.wav", SR, 1, 1.5, 0); /* a bext chunk with time reference 0 */
 	FILE* junk = fopen (Glib::build_filename (card, "notes.txt").c_str (), "w");
 	fputs ("not audio", junk);
 	fclose (junk);
@@ -119,11 +123,33 @@ main (int argc, char* argv[])
 	       "track names from the file names");
 
 	vector<string> const wavs = SongImport::wav_files_in (card);
-	check (wavs.size () == 5, string_compose ("the folder's WAV files (%1)", wavs.size ()));
+	check (wavs.size () == 6, string_compose ("the folder's WAV files (%1)", wavs.size ()));
+	SongImport::File const pk = SongImport::probe (Glib::build_filename (card, "06 Korg take.wav"));
+	check (pk.ok && !pk.has_time_reference, "a time stamp of 0 (Korg SR-1) is no time stamp");
 
-	SongImport::Report const r = SongImport::add_files (*s, wavs);
-	printf ("   %d tracks, %d converted, %d without time stamp, %zu failed\n", r.tracks, r.converted, r.no_stamp, r.failed.size ());
-	check (r.tracks == 5 && r.converted == 1 && r.no_stamp == 1 && r.failed.empty (), "5 tracks, the 44.1 kHz take converted, 1 without a time stamp");
+	/* ---- default: every file from the start of the song ---- */
+	{
+		SongImport::Report const r = SongImport::add_files (*s, wavs);
+		printf ("   default: %d tracks, %d converted, %zu failed\n", r.tracks, r.converted, r.failed.size ());
+		check (r.tracks == 6 && r.converted == 1 && r.by_stamp == 0 && r.failed.empty (), "6 tracks, the 44.1 kHz take converted");
+		bool at0 = true;
+		for (char const* n : { "Guitar L", "Guitar R", "Vocal take", "Bass", "Tambourine", "Korg take" }) {
+			std::shared_ptr<Track> t = std::dynamic_pointer_cast<Track> (s->route_by_name (n));
+			at0 &= t && !t->playlist ()->region_list ()->empty () && t->playlist ()->region_list ()->front ()->position ().samples () == 0;
+		}
+		check (at0, "by default every file starts at the start of the song (as the R8 writes them)");
+		s->save_state ("");
+		SessionUtils::unload_session (s);
+	}
+
+	/* ---- with the time stamp option, in a second song ---- */
+	s = SessionUtils::create_session (Glib::build_filename (dir, "stamped"), "stamped", SR, &bus_profile);
+	if (!s) {
+		return 1;
+	}
+	SongImport::Report const r = SongImport::add_files (*s, wavs, true);
+	printf ("   by time stamp: %d tracks, %d converted, %d by stamp, %d without, %zu failed\n", r.tracks, r.converted, r.by_stamp, r.no_stamp, r.failed.size ());
+	check (r.tracks == 6 && r.converted == 1 && r.by_stamp == 4 && r.no_stamp == 2 && r.failed.empty (), "6 tracks, 4 placed by their time stamp, 2 without one");
 
 	struct Expect {
 		char const* name;
@@ -132,7 +158,7 @@ main (int argc, char* argv[])
 		double      length;
 	};
 	Expect const expect[] = {
-		{ "Guitar L", 1, 0.0, 3 }, { "Guitar R", 1, 2.0, 3 }, { "Vocal take", 2, 1.5, 2 }, { "Bass", 1, 0.25, 4 }, { "Tambourine", 1, 0.0, 1 },
+		{ "Guitar L", 1, 0.0, 3 }, { "Guitar R", 1, 2.0, 3 }, { "Vocal take", 2, 1.5, 2 }, { "Bass", 1, 0.25, 4 }, { "Tambourine", 1, 0.0, 1 }, { "Korg take", 1, 0.0, 1.5 },
 	};
 	bool all = true;
 	for (auto const& e : expect) {
@@ -149,7 +175,7 @@ main (int argc, char* argv[])
 		all &= t->n_inputs ().n_audio () == e.channels && std::llabs (pos - (samplepos_t)llround (e.at * SR)) <= 1
 		       && std::llabs (len - (samplecnt_t)llround (e.length * SR)) <= 2;
 	}
-	check (all, "each take on its own track, at its recorded position (to the sample), at the song's rate");
+	check (all, "by time stamp: each take at its recorded position (to the sample), at the song's rate");
 	check (s->current_start_sample () == 0 && std::llabs (s->current_end_sample () - (samplepos_t)(5 * SR)) <= 2,
 	       "the song range covers the takes (0 - 5 s)");
 

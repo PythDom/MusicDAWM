@@ -51,8 +51,10 @@ SongImport::probe (string const& path)
 	SF_BROADCAST_INFO bi;
 	memset (&bi, 0, sizeof (bi));
 	if (sf_command (sf, SFC_GET_BROADCAST_INFO, &bi, sizeof (bi)) == SF_TRUE) {
-		f.has_time_reference = true;
-		f.time_reference     = ((int64_t)bi.time_reference_high << 32) | (int64_t)bi.time_reference_low;
+		f.time_reference = ((int64_t)bi.time_reference_high << 32) | (int64_t)bi.time_reference_low;
+		/* a bext chunk with time reference 0 (the Korg SR-1 writes one) has
+		 * no position */
+		f.has_time_reference = f.time_reference > 0;
 	}
 	sf_close (sf);
 	return f;
@@ -98,7 +100,7 @@ SongImport::wav_files_in (string const& folder)
 }
 
 SongImport::Report
-SongImport::add_files (Session& s, vector<string> paths)
+SongImport::add_files (Session& s, vector<string> paths, bool by_time_stamp)
 {
 	Report r;
 	std::sort (paths.begin (), paths.end ());
@@ -116,7 +118,7 @@ SongImport::add_files (Session& s, vector<string> paths)
 	/* the song starts at the earliest take (in seconds, rates may differ) */
 	double first = -1;
 	for (auto const& f : files) {
-		if (f.has_time_reference) {
+		if (by_time_stamp && f.has_time_reference) {
 			double const t = f.time_reference / double (f.rate);
 			first          = first < 0 ? t : std::min (first, t);
 		}
@@ -170,10 +172,13 @@ SongImport::add_files (Session& s, vector<string> paths)
 		std::shared_ptr<Region> reg = RegionFactory::create (wr, plist);
 
 		samplepos_t pos = 0;
-		if (f.has_time_reference) {
-			pos = (samplepos_t)llround ((f.time_reference / double (f.rate) - first) * sr);
-		} else {
-			++r.no_stamp;
+		if (by_time_stamp) {
+			if (f.has_time_reference) {
+				pos = (samplepos_t)llround ((f.time_reference / double (f.rate) - first) * sr);
+				++r.by_stamp;
+			} else {
+				++r.no_stamp;
+			}
 		}
 		t->playlist ()->add_region (reg, timepos_t (pos));
 		end = std::max (end, pos + reg->length ().samples ());

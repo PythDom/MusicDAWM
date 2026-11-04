@@ -77,6 +77,7 @@ public:
 		enum Kind { None = 0, Wavs, DAWproject, Waveform, Cubase };
 		static Kind                     kind;
 		static std::vector<std::string> files;
+		static bool                     by_time_stamp; /* Wavs: place by BWF time stamp (default: all at 0) */
 	};
 
 	SessionDialog (DialogTab initial_tab, const std::string& session_name, const std::string& session_path,

@@ -816,6 +816,7 @@ ARDOUR_UI::song_start_after_new_session ()
 {
 	SessionDialog::SongStart::Kind const kind  = SessionDialog::SongStart::kind;
 	std::vector<std::string> const       files = SessionDialog::SongStart::files;
+	bool const                           by_stamp = SessionDialog::SongStart::by_time_stamp;
 	SessionDialog::SongStart::kind             = SessionDialog::SongStart::None;
 	SessionDialog::SongStart::files.clear ();
 
@@ -836,7 +837,7 @@ ARDOUR_UI::song_start_after_new_session ()
 			while (gtk_events_pending ()) {
 				gtk_main_iteration ();
 			}
-			ARDOUR::SongImport::Report const r = ARDOUR::SongImport::add_files (*_session, files);
+			ARDOUR::SongImport::Report const r = ARDOUR::SongImport::add_files (*_session, files, by_stamp);
 			if (w) {
 				w->set_cursor ();
 			}
@@ -847,6 +848,11 @@ ARDOUR_UI::song_start_after_new_session ()
 			std::string msg = string_compose (P_("%1 track was made from the WAV files.", "%1 tracks were made from the WAV files.", r.tracks), r.tracks);
 			if (r.converted > 0) {
 				msg += "\n" + string_compose (P_("%1 file was converted to the song's sample rate.", "%1 files were converted to the song's sample rate.", r.converted), r.converted);
+			}
+			if (by_stamp) {
+				msg += "\n" + string_compose (P_("%1 file was placed by its recording time stamp.", "%1 files were placed by their recording time stamp.", r.by_stamp), r.by_stamp);
+			} else {
+				msg += "\n" + string (_("Each file starts at the start of the song."));
 			}
 			if (r.no_stamp > 0) {
 				msg += "\n" + string_compose (P_("%1 file has no recording time stamp and was placed at the start.", "%1 files have no recording time stamp and were placed at the start.", r.no_stamp), r.no_stamp);

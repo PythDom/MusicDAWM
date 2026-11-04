@@ -58,3 +58,7 @@ In the program (Xvfb): the START page; *New song from WAV files…* on a copy of
 3. Check: one track per take with sensible names, the takes in time with each other (play a passage where all instruments play), the summary message.
 4. Check that no recording controls are visible; tick **View > Show Recording Controls** and untick it again.
 5. Try **Bring a song from another program** with one DAWproject or Waveform file.
+
+## Update 2026-11-04: files start at 0 (D-055)
+
+Acceptance on the user's files: a Zoom R8 take (`SoloL-01.WAV`, mono 48 kHz, no bext chunk, 9.5 s of silence before the solo) and a Korg SR-1 take (`M000001_.WAV`, bext with time reference 0 and only the date and time). Neither says where it goes; the R8's `PRJDATA.ZDT` lists the file of each track but no positions. Both recorders write every file from the start of the song (confirmed by the user), so every file now starts at 0 by default; placing by BWF time stamp is an option in the file picker, and a stamp of 0 is no stamp. `song_import_test` checks both modes and the Korg case.

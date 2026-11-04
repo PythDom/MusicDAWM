@@ -85,6 +85,7 @@ using namespace ARDOUR_UI_UTILS;
 
 SessionDialog::SongStart::Kind SessionDialog::SongStart::kind = SessionDialog::SongStart::None;
 std::vector<std::string>       SessionDialog::SongStart::files;
+bool                           SessionDialog::SongStart::by_time_stamp = false;
 
 SessionDialog::SessionDialog (DialogTab initial_tab, const std::string& session_name, const std::string& session_path, const std::string& template_name, bool cancel_not_quit)
 	: ArdourDialog (initial_tab == New ? _("Session Setup") : _("Recent Sessions"), true, true)
@@ -437,9 +438,17 @@ SessionDialog::start_new_from_wavs ()
 	wav.add_pattern ("*.WAV");
 	wav.add_pattern ("*.Wav");
 	d.add_filter (wav);
-	Label hint (_("Select all the takes of the song (Ctrl+A selects all the files of the folder), or select the folder that holds them."));
-	hint.show ();
-	d.set_extra_widget (hint);
+	Label hint (_("Select all the takes of the song (Ctrl+A selects all the files of the folder), or select the folder that holds them. "
+	              "Each file starts at the start of the song, as a multitrack recorder (Zoom R8, Korg SR-1) writes them."));
+	hint.set_line_wrap (true);
+	hint.set_size_request (520, -1);
+	CheckButton by_stamp (_("Place the files by their recording time stamp (BWF), for recorders that stamp each take with its time of day"));
+	by_stamp.set_active (false);
+	VBox extra (false, 4);
+	extra.pack_start (hint, false, false);
+	extra.pack_start (by_stamp, false, false);
+	extra.show_all ();
+	d.set_extra_widget (extra);
 	/* the folder of the last takes (this run), else the home folder */
 	static string last_folder;
 	d.set_current_folder (last_folder.empty () ? Glib::get_home_dir () : last_folder);
@@ -469,7 +478,8 @@ SessionDialog::start_new_from_wavs ()
 	if (g_ascii_strcasecmp (name.c_str (), "AUDIO") == 0) {
 		name = Glib::path_get_basename (Glib::path_get_dirname (folder));
 	}
-	SongStart::files = files;
+	SongStart::files         = files;
+	SongStart::by_time_stamp = by_stamp.get_active ();
 	start_new_song (name, SongStart::Wavs);
 }
 

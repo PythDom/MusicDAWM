@@ -2,8 +2,11 @@
  * MusicDAWM WP2: a new song from WAV files.
  *
  * The files (e.g. the takes of a Zoom R8 project) become one track each,
- * named after the file, each file at its recorded position: the BWF time
- * stamp (bext time reference) relative to the earliest file. Files are
+ * named after the file. A multitrack recorder's files all start at the
+ * start of the song (the Zoom R8, the Korg SR-1), so by default each file
+ * starts at 0. Optionally (by_time_stamp), files are placed by their BWF
+ * time stamp (bext time reference, not 0) relative to the earliest stamped
+ * file, for recorders that stamp each take with its time of day. Files are
  * copied into the session (converted to its sample rate if needed).
  *
  * This program is free software; you can redistribute it and/or modify
@@ -40,7 +43,8 @@ public:
 	struct Report {
 		int                      tracks    = 0;
 		int                      converted = 0; /* files at another sample rate */
-		int                      no_stamp  = 0; /* files without a BWF time stamp (placed at the start) */
+		int                      no_stamp  = 0; /* by_time_stamp: files without a BWF time stamp (placed at the start) */
+		int                      by_stamp  = 0; /* by_time_stamp: files placed by their time stamp */
 		std::vector<std::string> failed;        /* files that could not be read or imported */
 	};
 
@@ -49,7 +53,7 @@ public:
 	/* the WAV files of a folder, in name order */
 	static std::vector<std::string> wav_files_in (std::string const& folder);
 
-	static Report add_files (Session&, std::vector<std::string> paths);
+	static Report add_files (Session&, std::vector<std::string> paths, bool by_time_stamp = false);
 };
 
 } // namespace ARDOUR

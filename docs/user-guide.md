@@ -330,12 +330,12 @@ The **RECENT**, **OPEN** and **NEW** tabs on the left are Ardour's own pages, un
 2. Click **New song from WAV files…**, go into the `AUDIO` folder and select all the takes (**Ctrl+A**), or just select the folder itself. Click **Make the song**.
 3. The song is created in the folder shown on the **NEW** page (normally `Documents`), named after the project folder (`PROJ003`; a number is added if that name exists). If you then want another name: **Session > Rename**.
 4. You get **one track per file**, named after the file: leading numbers and `_` are removed, so `01_Guitar_L.WAV` becomes "Guitar L". Mono files make mono tracks, stereo files stereo tracks.
-5. **Each take is placed where it was recorded.** The R8 writes a time stamp into every WAV file (Broadcast WAV). MusicDAWM puts the earliest take at the start of the song and every other take at the same distance from it as on the recorder, to the sample. A summary tells you how many tracks were made, and which files had to be converted or had no time stamp.
+5. **Every file starts at the start of the song**, as the R8 (and the Korg SR-1) writes them: a solo recorded halfway through the song has silence before it, so it lands in place. A summary tells you how many tracks were made and which files had to be converted.
+   - For recorders that stamp each take with its time of day (Broadcast WAV) and write only the take, tick **Place the files by their recording time stamp** in the file picker: the earliest take then starts the song and the others keep their distance from it; files without a stamp start at 0.
 
 Good to know:
 - The files are **copied** into the song's folder; the files on the card or in your copy are not changed.
 - A file at another sample rate than the song (for example 44.1 kHz in a 48 kHz song) is converted with the best-quality converter. The song gets the sample rate chosen in the Audio/MIDI Setup (§2), so choose the R8's rate there (44.1 or 48 kHz) to avoid converting.
-- A WAV file without a time stamp (for example from another program) is placed at the start of the song.
 - Files that cannot be read (not audio, damaged) are listed in the summary and skipped.
 - This works for any WAV files, not only the R8's.
 
