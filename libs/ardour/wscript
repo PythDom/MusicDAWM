@@ -68,6 +68,7 @@ libardour_sources = [
         'tap_tempo.cc',
         'beat_detect.cc',
         'gm_sound.cc',
+        'bass_studio.cc',
         'drum_studio.cc',
         'dsp_filter.cc',
         'ebur128_analysis.cc',

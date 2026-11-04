@@ -158,6 +158,7 @@ class RegionLayeringOrderEditor;
 class VerboseCursor;
 
 class DrumStudioPanel;
+class BassStudioPanel;
 class TapTempoWindow;
 class FinalMixWindow;
 
@@ -171,6 +172,7 @@ public:
 
 	/* MusicDAWM: show the Drum Studio page of the sidebar */
 	void show_drum_studio ();
+	void show_bass_studio ();
 	void show_tap_tempo_window (); /* MusicDAWM WP4 */
 	void show_final_mix_window (); /* MusicDAWM WP7 */
 	void freeze_track (std::shared_ptr<ARDOUR::Track>);   /* MusicDAWM WP7 */
@@ -1042,9 +1044,11 @@ private:
 
 	TriggerClipPicker    _trigger_clip_picker;
 	DrumStudioPanel*     _drum_studio;
+	BassStudioPanel*     _bass_studio;
 	TapTempoWindow*      _tap_tempo_window = nullptr;
 	FinalMixWindow*      _final_mix_window = nullptr;
 	Gtk::Widget*         _drum_studio_page;
+	Gtk::Widget*         _bass_studio_page;
 
 	void control_vertical_zoom_in_all ();
 	void control_vertical_zoom_out_all ();

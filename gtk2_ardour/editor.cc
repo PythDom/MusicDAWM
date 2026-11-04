@@ -74,6 +74,8 @@
 
 #include "ardour/analysis_graph.h"
 #include "ardour/audio_track.h"
+#include "ardour/bass_studio.h"
+#include "ardour/drum_studio.h"
 #include "ardour/audioengine.h"
 #include "ardour/audioregion.h"
 #include "ardour/lmath.h"
@@ -123,6 +125,7 @@
 #include "editor_routes.h"
 #include "editor_section_box.h"
 #include "editor_sections.h"
+#include "bass_studio_panel.h"
 #include "drum_studio_panel.h"
 #include "final_mix_window.h"
 #include "tap_tempo_window.h"
@@ -705,6 +708,13 @@ Editor::Editor ()
 	dsw->add (*_drum_studio);
 	add_notebook_page (_("Drums"), _("Drum Studio"), *dsw);
 	_drum_studio_page = dsw;
+
+	_bass_studio = manage (new BassStudioPanel);
+	Gtk::ScrolledWindow* bsw = wrap (GTK_SCROLLED_WINDOW (gtk_scrolled_window_new (nullptr, nullptr)));
+	bsw->set_policy (Gtk::POLICY_AUTOMATIC, Gtk::POLICY_AUTOMATIC);
+	bsw->add (*_bass_studio);
+	add_notebook_page (_("Bass"), _("Bass Studio"), *bsw);
+	_bass_studio_page = bsw;
 
 	/* Don't want to create adjustments for this, and C++ API doesn't allow
 	 * a ScrolledWindow without specified adjustments (unlike the C
@@ -1301,6 +1311,7 @@ Editor::set_session (Session *t)
 
 	_trigger_clip_picker.set_session (_session);
 	_drum_studio->set_session (_session);
+	_bass_studio->set_session (_session);
 	if (_final_mix_window) {
 		_final_mix_window->set_session (_session);
 	}
@@ -4889,6 +4900,10 @@ Editor::maybe_show_instrument_plugin (std::shared_ptr<MidiTrack> mt)
 	if (!UIConfiguration::instance().get_open_gui_after_creating_instrument_track ()) {
 		return;
 	}
+	/* MusicDAWM: Drum Studio and Bass Studio are the UI of their tracks */
+	if (DrumStudio::is_drum_track (mt) || BassStudio::is_bass_track (mt)) {
+		return;
+	}
 	std::shared_ptr<PluginInsert> pi = std::dynamic_pointer_cast<PluginInsert> (mt->the_instrument ());
 	if (!pi) {
 		return;
@@ -5653,6 +5668,19 @@ Editor::show_final_mix_window ()
 		_final_mix_window->set_session (_session);
 	}
 	_final_mix_window->present ();
+}
+
+void
+Editor::show_bass_studio ()
+{
+	ARDOUR_UI::instance ()->show_tabbable (this);
+	show_editor_list_action->set_active (true);
+	_the_notebook.set_current_page (_the_notebook.page_num (*_bass_studio_page));
+	int const want  = _bass_studio->size_request ().width + 24;
+	int const total = content_right_pane.get_allocation ().get_width ();
+	if (total > 0 && (1.f - content_right_pane.get_divider (0)) * total < want) {
+		content_right_pane.set_divider (0, std::max (0.4f, 1.f - (float) want / total));
+	}
 }
 
 void

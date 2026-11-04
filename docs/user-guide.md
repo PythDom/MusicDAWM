@@ -74,7 +74,7 @@ The missing third-party plugins are a packaging choice for now, not a limitation
 
 **Reporting a problem:** use **Help → Report a Bug**, which opens the MusicDAWM issue page, and describe what you did, what you expected, and what happened. Please do not report MusicDAWM problems to the Ardour project: Ardour's developers cannot accept MusicDAWM's code (see `DECISIONS.md` D-010), and a problem may come from our changes rather than theirs. A problem you can also reproduce in stock Ardour 9.8 is fine to report to them in your own words.
 
-## 6. Drum Studio
+## 6. Drum Studio and Bass Studio
 
 Drum Studio gives a song a drummer: pick a style, then play the song parts live while your guitar track plays, the way you would call out parts to a drummer. Everything you play is recorded on the timeline, plays back the same way, and can be turned into ordinary MIDI that you edit note by note.
 
@@ -115,6 +115,22 @@ After flattening, edit the drums like any MIDI: double-click a region to edit no
 - Drum tracks start at −6 dB, because the AVL kits are loud on accented crashes. The track monitors **In** and **Disk** together, so it plays the regions, the cues and a MIDI drum pad you connect.
 - Switches are timed by the program's display loop. If the program freezes for longer than a beat right before a switch (for example while a plugin window opens), that switch can land one beat late; drag its marker into place.
 - A session with a drum track is an ordinary Ardour session plus a few extra settings that stock Ardour ignores, so it should open in stock Ardour 9.8 without the Drum Studio page. This has not been tested yet.
+
+### Bass Studio: a bass line from your chords
+
+**Window → Bass Studio** opens its page in the Editor's sidebar, next to Drum Studio.
+
+1. **Chords:** type the song's chords, **one per bar**: `C G Am F`. Bar lines `|` and new lines are ignored, so you can write it as you would on paper.
+   - `C,G` is two chords in one bar (half a bar each); `%` repeats the bar before; `N.C.` (or `x`) is a bar without bass; `C/E` plays E in the bass; `[Verse]` is a comment.
+   - Usual chord names work: `Am`, `F#m7b5`, `Bbmaj7`, `Esus4`, `Cdim7`, `Gaug`, `D7`, `Eb6`, `A9`…
+2. **Start bar:** the bar of the first chord (1 = the start of the song; choose the bar after a count-in or intro).
+3. **Style:** Root notes, Rock / pop eighths, Country / two-feel, Disco octaves, Jazz walking, Reggae one-drop, Funk sixteenths, Ballad, Blues shuffle, Bossa nova, or **Follow the kick drum** (a note on every kick of the Drum Studio track).
+4. **Complexity** 1–4 and **Feel** (normal, half-time, double-time), as in Drum Studio. With **Follow the drum parts** ticked, each bar takes the complexity of the Drum Studio part played there (for example 1 in the verse, 4 in the chorus).
+5. **Sound:** a General MIDI bass of the bundled soundfont (finger, pick, fretless, slap, acoustic, synth basses).
+6. **Listen** plays the first 4 bars in a loop; change the style, complexity, feel or sound while it plays. Click **Listen** again to stop.
+7. **Make Bass Line** puts the line on a **Bass** track (created the first time) as one MIDI region called *Bass line*. Making it again replaces that region (your own regions on the bass track stay); **Edit → Undo** brings the previous line back. The chords and settings are saved with the song.
+
+The line is ordinary MIDI: double-click the region to move, delete or add notes, or change the sound later in the track's Fluid Synth.
 
 ## 7. Importing a project from another DAW (DAWproject)
 

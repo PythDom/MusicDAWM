@@ -735,6 +735,7 @@
       <menuitem action='toggle-big-transport'/>
       <menuitem action='toggle-virtual-keyboard'/>
       <menuitem action='show-drum-studio'/>
+      <menuitem action='show-bass-studio'/>
       <menuitem action='toggle-library-downloader'/>
 
       <separator/><!-- Video Monitor !-->

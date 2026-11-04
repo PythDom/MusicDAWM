@@ -111,6 +111,7 @@ jobs:
           T=$(cygpath -u "$RUNNER_TEMP")
           export PATH="$PWD/stage/bin:/usr/bin:/c/Windows/System32:/c/Windows"
           MUSICDAWM_REQUIRE_KIT=1 MUSICDAWM_REQUIRE_SOUNDFONT=1 stage/bin/musicdawm9-drum_studio_test.exe "$(cygpath -m "$T/drums")" -
+          MUSICDAWM_REQUIRE_SOUNDFONT=1 stage/bin/musicdawm9-bass_studio_test.exe "$(cygpath -m "$T/bass")" -
       - name: DAWproject import test (bundle only)
         run: |
           T=$(cygpath -u "$RUNNER_TEMP")
