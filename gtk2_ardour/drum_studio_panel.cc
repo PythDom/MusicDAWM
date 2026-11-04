@@ -12,6 +12,7 @@
 #include "pbd/compose.h"
 
 #include "ardour/auditioner.h"
+#include "ardour/gm_sound.h"
 #include "ardour/location.h"
 #include "ardour/region.h"
 #include "ardour/midi_track.h"
@@ -90,9 +91,9 @@ DrumStudioPanel::DrumStudioPanel ()
 		_style.add_menu_elem (MenuElem (st.name, sigc::bind (sigc::mem_fun (*this, &DrumStudioPanel::set_style), st.key)));
 	}
 
-	_kits = DrumStudio::bundled_kits ();
+	_kits = DrumStudio::kits ();
 	for (size_t i = 0; i < _kits.size (); ++i) {
-		_kit.add_menu_elem (MenuElem (_kits[i]->name, sigc::bind (sigc::mem_fun (*this, &DrumStudioPanel::set_kit), (int)i)));
+		_kit.add_menu_elem (MenuElem (_kits[i].name, sigc::bind (sigc::mem_fun (*this, &DrumStudioPanel::set_kit), (int)i)));
 	}
 	_kit.add_menu_elem (MenuElem (_("No instrument (choose your own later)"), sigc::bind (sigc::mem_fun (*this, &DrumStudioPanel::set_kit), -1)));
 
@@ -248,6 +249,10 @@ DrumStudioPanel::set_session (Session* s)
 		set_style (DrumStudio::style_of (t));
 		set_feel (DrumStudio::feel_of (t));
 	}
+	if (t && DrumStudio::gm_program_of (t) >= 0) {
+		/* the soundfont's place may have changed (the program folder moved) */
+		GMSound::load_soundfont (t);
+	}
 	update_buttons ();
 }
 
@@ -301,7 +306,7 @@ void
 DrumStudioPanel::set_kit (int i)
 {
 	_kit_index = (i >= 0 && i < (int)_kits.size ()) ? i : -1;
-	_kit.set_text (_kit_index >= 0 ? _kits[_kit_index]->name : _("No instrument"));
+	_kit.set_text (_kit_index >= 0 ? _kits[_kit_index].name : _("No instrument"));
 	if (_preview_slot >= 0) {
 		int p, c;
 		DrumStudio::cell_of_slot (_preview_slot, p, c);
@@ -321,7 +326,7 @@ DrumStudioPanel::preview (int part, int complexity)
 		_status.set_text (_("Choose a kit to listen to the grooves."));
 		return;
 	}
-	std::shared_ptr<Region> r = DrumStudio::groove_region (*_session, _style_key, part, complexity, _feel);
+	std::shared_ptr<Region> r = DrumStudio::groove_region (*_session, _style_key, part, complexity, _feel, _kits[_kit_index].gm_program);
 	if (!r) {
 		_status.set_text (_("This groove is missing from the library."));
 		return;
@@ -329,14 +334,21 @@ DrumStudioPanel::preview (int part, int complexity)
 	if (_session->transport_rolling ()) {
 		_session->request_stop ();
 	}
-	_session->the_auditioner ()->set_audition_synth_info (_kits[_kit_index]);
+	DrumStudio::Kit const& kit = _kits[_kit_index];
+	if (kit.gm_program >= 0) {
+		/* a General MIDI kit: Fluid Synth gets the soundfont when created */
+		_session->the_auditioner ()->synth_setup = [] (std::shared_ptr<Plugin> p) { GMSound::load_soundfont (p); };
+	} else {
+		_session->the_auditioner ()->synth_setup = nullptr;
+	}
+	_session->the_auditioner ()->set_audition_synth_info (kit.synth);
 	_preview_slot = DrumStudio::slot (part, complexity);
 	_part         = part;
 	_complexity   = complexity;
 	_session->audition_region (r, true);
 	DrumStudio::Style const* st = DrumStudio::style (_style_key);
 	_status.set_text (string_compose (_("Listening to %1, %2 %3 (%4). Click another cell, Stop, or Create Drum Track to use this style."),
-	                                  st ? st->name : _style_key, DrumStudio::parts ()[part].name, complexity, _kits[_kit_index]->name));
+	                                  st ? st->name : _style_key, DrumStudio::parts ()[part].name, complexity, _kits[_kit_index].name));
 	update_buttons ();
 }
 
@@ -409,7 +421,7 @@ DrumStudioPanel::create_or_load ()
 	} else {
 		stop_preview ();
 		match_meter ();
-		std::shared_ptr<PluginInfo> kit = _kit_index >= 0 ? _kits[_kit_index] : std::shared_ptr<PluginInfo> ();
+		DrumStudio::Kit const kit = _kit_index >= 0 ? _kits[_kit_index] : DrumStudio::Kit ();
 		t = DrumStudio::create_drum_track (*_session, _style_key, kit, _feel);
 		if (!t) {
 			ArdourMessageDialog msg (_("The drum track could not be created."));

@@ -76,3 +76,7 @@ bash ci/avldrums-build.sh "$STAGE/lib/ardour9/LV2" > avldrums.log 2>&1 || { tail
 tail -n 12 avldrums.log
 bash ci/x42-mix-plugins-build.sh "$STAGE/lib/ardour9/LV2" > x42.log 2>&1 || { tail -n 40 x42.log; exit 1; }
 tail -n 12 x42.log
+# The General MIDI soundfont (Drum Studio's GM kits, Bass Studio), next to the groove library.
+DATA=$(dirname "$(find "$STAGE/share" -maxdepth 2 -type d -name drumstudio | head -n 1)")
+bash ci/generaluser-gs-fetch.sh "$DATA/soundfonts" > gugs.log 2>&1 || { tail -n 20 gugs.log; exit 1; }
+tail -n 3 gugs.log

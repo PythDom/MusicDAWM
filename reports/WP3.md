@@ -76,3 +76,11 @@ Both workflows green on `c01ff01b44`:
 - **Feel**: Normal / Half-time / Double-time, on the drum track (`DrumStudio::Feel`, `convert_feel`, `groove_file`); fills return when their groove ends.
 - `drum_studio_test`: rock verse 2 is 8 beats and 26 notes; half-time 16 beats and the same 26 notes, every kick twice as late; double-time 8 beats and 52 notes; the preview region is made in each feel.
 - In the program (Xvfb): the cells are active before the track exists, a click previews (cell lit, status, Stop active), changing the feel restarts it, Stop ends it, the track is created in half-time.
+
+## Update 2026-11-04: General MIDI kits (D-057)
+
+- GeneralUser GS v2.0.3 (32 MB, licence read) fetched by `ci/generaluser-gs-fetch.sh` at a pinned commit with a SHA-256 check, into `share/<name>/soundfonts`, licence in `licences/`.
+- Drum Studio kits: the 4 AVL kits, then 8 General MIDI kits (Standard, Room, Power, Electronic, 808/909, Dance, Jazz, Brush) through ACE Fluid Synth; preview and drum tracks with them.
+- `drum_studio_test` (Linux CI with the soundfont, Windows bundle requiring it): the GM kits are offered, a Room kit track is played by Fluid Synth, every groove starts with program change 8 on channel 10, the track is removed while the soundfont is still loading.
+- Found and fixed in Ardour: removing a Fluid Synth while it loads a soundfont crashed (`LV2Plugin` freed the instance before its worker thread stopped). 4 crashes in 5 runs before, 5 passes in 5 after; the Final Mix test (x42 and ACE plug-ins) still passes.
+- In the program (Xvfb): the kit list shows the GM kits, the preview plays with *Dance (General MIDI)*, rapid kit changes during the preview do not crash.

@@ -89,7 +89,7 @@ private:
 	Gtk::Label                    _status;
 
 	std::vector<ArdourWidgets::ArdourButton*>        _cells; /* by slot */
-	std::vector<std::shared_ptr<ARDOUR::PluginInfo>> _kits;
+	std::vector<ARDOUR::DrumStudio::Kit>             _kits;
 
 	std::string _style_key;
 	int         _kit_index;   /* into _kits; -1: no instrument */

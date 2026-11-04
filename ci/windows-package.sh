@@ -72,6 +72,7 @@ cp "$SRC/COPYING" licences/Ardour-COPYING.txt
 cp "$SRC/libs/ara/ARA_API/LICENSE.txt" licences/ARA_API-Apache-2.0.txt
 cp "$SRC/libs/ara/ARA_Library/LICENSE.txt" licences/ARA_Library-Apache-2.0.txt
 cp "$SRC/THIRD_PARTY.md" licences/
+cp share/*/soundfonts/LICENSE-GeneralUser-GS.txt licences/ 2>/dev/null || { echo "the soundfont's licence is missing" >&2; exit 1; }
 
 echo "bundle: $(ls bin | wc -l) files in bin, $(du -sh . | cut -f1) total"
 ls bin | grep -i '\.exe$'

@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <functional>
 #include <string>
 
 #include "pbd/mutex.h"
@@ -102,6 +103,8 @@ public:
 	int export_stuff (BufferSet&, samplepos_t, samplecnt_t, std::shared_ptr<Processor>, bool, bool, bool, MidiNoteTracker&) { return -1; }
 
 	void set_audition_synth_info(PluginInfoPtr in);
+	/* MusicDAWM: called with each new audition synth (e.g. to load a soundfont) */
+	std::function<void (std::shared_ptr<Plugin>)> synth_setup;
 	PluginInfoPtr get_audition_synth_info() {return audition_synth_info;}
 
 	samplecnt_t output_latency () const { return 0; }

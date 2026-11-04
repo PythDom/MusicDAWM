@@ -53,7 +53,7 @@ Then click **Start**.
 | Packaging | Portable folder (zip), releases on GitHub | Installer |
 | Audio drivers | PortAudio: WASAPI, MME, DirectSound, WDM-KS. **No ASIO.** | Same, plus ASIO in official builds |
 | Plugin formats | VST3, VST2 and LV2. CLAP is planned (§6). | VST3, VST2, LV2 |
-| Bundled plugins | Ardour's own ACE plugins (compressor, delay, EQ, expander, reverb, FluidSynth player, Reasonable Synth) and the **AVL drum kits** (x42-avldrums) for Drum Studio | Also bundles other third-party plugins: Harrison channel strip, several x42 plugins (including the AVL drum kit and a limiter) and a General MIDI synth |
+| Bundled plugins | Ardour's own ACE plugins (compressor, delay, EQ, expander, reverb, FluidSynth player, Reasonable Synth), the **AVL drum kits** (x42-avldrums) for Drum Studio, and the **GeneralUser GS** General MIDI soundfont (8 drum kits for Drum Studio, basses for Bass Studio) | Also bundles other third-party plugins: Harrison channel strip, several x42 plugins (including the AVL drum kit and a limiter) and a General MIDI synth |
 | Video | No video tools | Bundles the video helpers (harvid, xjadeo) |
 | Fonts | Uses fontconfig to draw text (see §5) | Uses the Windows font system |
 | Bug fixes | Correct peak meters and waveform overviews on CPUs with AVX-512 (Ardour 9.8 can show a wrong minimum or maximum there) | Not fixed in 9.8 |
@@ -83,7 +83,7 @@ Drum Studio gives a song a drummer: pick a style, then play the song parts live 
 ### Make the drum track
 
 1. **Style:** Rock, Pop, Ballad, Blues shuffle, Funk, Country, Reggae, Bossa nova, Jazz swing, Half-time, 6/8 or Punk.
-2. **Kit:** one of the bundled AVL acoustic kits (Black Pearl, Red Zeppelin, Blonde Bop, Buskman's Holiday), or **No instrument** to use your own drum plugin, such as MT Power DrumKit. The grooves are plain General MIDI drum notes, so any GM drum instrument plays them.
+2. **Kit:** one of the bundled AVL acoustic kits (Black Pearl, Red Zeppelin, Blonde Bop, Buskman's Holiday), one of the **General MIDI** kits of the bundled GeneralUser GS soundfont (*Standard, Room, Power, Electronic, 808/909, Dance, Jazz, Brush*, played by Ardour's own ACE Fluid Synth), or **No instrument** to use your own drum plugin, such as MT Power DrumKit. The grooves are plain General MIDI drum notes, so any GM drum instrument plays them.
 3. **Feel:** *Normal*, *Half-time* (the grooves twice as slow against the song: a one-bar groove takes two bars) or *Double-time* (twice as fast). Useful when the song's tempo map runs at double or half the speed you feel.
 4. **Listen first:** before the drum track exists, **click a cell** to hear that groove with the chosen kit and feel, in a loop, at your song's tempo (the transport stays stopped). Click other cells, change the style, kit or feel while it plays, and **Stop** to end it.
 5. **Create Drum Track.** You get a MIDI track called *Drums* with the kit and all 28 grooves loaded: 7 parts (intro, verse, pre-chorus, chorus, bridge, fill, ending) × 4 complexities (1 = simple, 4 = busy). If the style is in 6/8 and the song has a single time signature, the song is switched to 6/8 (undo reverts it). The style's suggested tempo is shown; your song's tempo is not changed.

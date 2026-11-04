@@ -41,6 +41,8 @@
 
 #include "ardour/audio_track.h"
 #include "ardour/drum_studio.h"
+#include "ardour/gm_sound.h"
+#include "ardour/plugin_insert.h"
 #include "ardour/location.h"
 #include "ardour/midi_model.h"
 #include "ardour/midi_region.h"
@@ -405,6 +407,60 @@ main (int argc, char* argv[])
 			check (same, "half-time: every kick twice as late");
 		}
 		check (DrumStudio::feel_of (track) == DrumStudio::FeelNormal, "the drum track is in the normal feel");
+	}
+
+	/* 6c. a General MIDI kit (GeneralUser GS through Fluid Synth) */
+	printf ("-- General MIDI kit\n");
+	if (!GMSound::available ()) {
+		/* CI: the soundfont is given (Linux) or must be in the bundle (Windows) */
+		bool const wanted = !Glib::getenv ("MUSICDAWM_SOUNDFONT").empty () || !Glib::getenv ("MUSICDAWM_REQUIRE_SOUNDFONT").empty ();
+		printf ("   soundfont or Fluid Synth not found%s\n", wanted ? "" : " (set MUSICDAWM_SOUNDFONT to test)");
+		check (!wanted, "the soundfont and Fluid Synth are found");
+	} else {
+		vector<DrumStudio::Kit> const kits = DrumStudio::kits ();
+		DrumStudio::Kit const*        room = 0;
+		for (auto const& k : kits) {
+			if (k.gm_program == 8) {
+				room = &k;
+			}
+		}
+		check (room && room->name == "Room (General MIDI)", "the General MIDI kits are offered");
+		std::shared_ptr<MidiTrack> gm = room ? DrumStudio::create_drum_track (*s, "rock", *room, DrumStudio::FeelNormal) : std::shared_ptr<MidiTrack> ();
+		check (gm && DrumStudio::gm_program_of (gm) == 8, "a drum track with the Room kit");
+		std::shared_ptr<PluginInsert> pi = gm ? std::dynamic_pointer_cast<PluginInsert> (gm->the_instrument ()) : std::shared_ptr<PluginInsert> ();
+		check (pi && pi->plugin ()->unique_id () == "urn:ardour:a-fluidsynth", "played by Fluid Synth");
+		/* the slots are filled by the trigger box's worker */
+		std::shared_ptr<MidiRegion> vr;
+		for (int w = 0; gm && !vr && w < 100; ++w) {
+			vr = std::dynamic_pointer_cast<MidiRegion> (gm->triggerbox ()->trigger (cell ("verse", 2))->the_region ());
+			if (!vr) {
+				Glib::usleep (50000);
+			}
+		}
+		bool pc = false;
+		if (vr) {
+			for (auto const& c : vr->model ()->patch_changes ()) {
+				pc |= c->program () == 8 && c->channel () == 9 && c->time () == Temporal::Beats ();
+			}
+		}
+		if (vr) {
+			printf ("   verse 2 slot: %zu patch changes, %zu notes\n", vr->model ()->patch_changes ().size (), vr->model ()->notes ().size ());
+			for (auto const& c : vr->model ()->patch_changes ()) {
+				printf ("     program %d channel %d at %" PRId64 "\n", (int)c->program (), (int)c->channel (), c->time ().to_ticks ());
+			}
+		} else {
+			printf ("   verse 2 slot: no region\n");
+		}
+		check (pc, "each groove starts with the kit's program change (channel 10)");
+		/* removed while the soundfont still loads in the plug-in's worker
+		 * thread (it crashed: the instance was freed before the worker stopped) */
+		vr.reset ();
+		pi.reset ();
+		if (gm) {
+			std::shared_ptr<RouteList> rl (new RouteList);
+			rl->push_back (gm);
+			s->remove_routes (rl);
+		}
 	}
 
 	/* 7. save; a second run of this program reopens the session. (Loading a

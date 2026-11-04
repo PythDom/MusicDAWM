@@ -27,6 +27,7 @@
 #include "ardour/chan_count.h"
 #include "ardour/drum_studio.h"
 #include "ardour/filesystem_paths.h"
+#include "ardour/gm_sound.h"
 #include "ardour/location.h"
 #include "ardour/midi_region.h"
 #include "ardour/dB.h"
@@ -223,6 +224,68 @@ DrumStudio::bundled_kits ()
 	return kits;
 }
 
+vector<DrumStudio::Kit>
+DrumStudio::kits ()
+{
+	vector<Kit> k;
+	for (auto const& pi : bundled_kits ()) {
+		Kit kit;
+		kit.name  = pi->name;
+		kit.synth = pi;
+		k.push_back (kit);
+	}
+	if (GMSound::available ()) {
+		for (auto const& p : GMSound::drum_kits ()) {
+			Kit kit;
+			kit.name       = string_compose (_("%1 (General MIDI)"), p.name);
+			kit.synth      = GMSound::synth ();
+			kit.gm_program = p.program;
+			k.push_back (kit);
+		}
+	}
+	return k;
+}
+
+int
+DrumStudio::gm_program_of (std::shared_ptr<Route> r)
+{
+	int p = -1;
+	if (r) {
+		if (XMLNode* node = r->extra_xml (drum_studio_node)) {
+			node->get_property (X_("gm-program"), p);
+		}
+	}
+	return p;
+}
+
+std::shared_ptr<MidiTrack>
+DrumStudio::create_drum_track (Session& session, string const& style_key, Kit const& kit, Feel feel)
+{
+	if (kit.gm_program < 0) {
+		return create_drum_track (session, style_key, kit.synth, feel);
+	}
+	if (!style (style_key) || !kit.synth) {
+		return std::shared_ptr<MidiTrack> ();
+	}
+	std::list<std::shared_ptr<MidiTrack>> tl = session.new_midi_track (
+	    ChanCount (DataType::MIDI, 1), ChanCount (DataType::MIDI, 1), false,
+	    kit.synth, 0, std::shared_ptr<RouteGroup> (), 1, _("Drums"),
+	    PresentationInfo::max_order, Normal, true, false /* not on the Cue page */);
+	if (tl.empty ()) {
+		return std::shared_ptr<MidiTrack> ();
+	}
+	std::shared_ptr<MidiTrack> track = tl.front ();
+	GMSound::load_soundfont (track);
+	play_timeline_too (track);
+	/* the kit is chosen by the program change at the start of every groove */
+	XMLNode* node = track->extra_xml (drum_studio_node, true);
+	node->set_property (X_("gm-program"), kit.gm_program);
+	if (load_style (track, style_key, feel)) {
+		warning << string_compose (_("Drum Studio: not all grooves of '%1' could be loaded"), style_key) << endmsg;
+	}
+	return track;
+}
+
 static void
 configure_slot (std::shared_ptr<Trigger> t, int part_index)
 {
@@ -261,6 +324,7 @@ DrumStudio::load_style (std::shared_ptr<MidiTrack> track, string const& style_ke
 		}
 	}
 
+	int const gm = gm_program_of (track);
 	int loaded = 0;
 	for (size_t p = 0; p < parts ().size (); ++p) {
 		for (int c = 1; c <= complexities; ++c) {
@@ -269,7 +333,7 @@ DrumStudio::load_style (std::shared_ptr<MidiTrack> track, string const& style_ke
 			if (!g || !Glib::file_test (g->path, Glib::FILE_TEST_EXISTS)) {
 				continue;
 			}
-			string const file = groove_file (g->path, feel);
+			string const file = groove_file (g->path, feel, gm);
 			if (file.empty ()) {
 				continue;
 			}
@@ -351,7 +415,7 @@ is_note_off (vector<uint8_t> const& e)
 } // namespace
 
 bool
-DrumStudio::convert_feel (string const& from, string const& to, Feel feel)
+DrumStudio::convert_feel (string const& from, string const& to, Feel feel, int gm_program, int gm_bank)
 {
 	FILE* f = g_fopen (from.c_str (), "rb");
 	if (!f) {
@@ -460,6 +524,22 @@ DrumStudio::convert_feel (string const& from, string const& to, Feel feel)
 	} else {
 		out = ev;
 	}
+	if (gm_program >= 0 && gm_program < 128) {
+		/* the program first, on the channel of the notes (10 for drums) */
+		int chn = 9;
+		for (auto const& e : ev) {
+			if ((e.bytes[0] & 0xf0) == 0x90) {
+				chn = e.bytes[0] & 0x0f;
+				break;
+			}
+		}
+		int o = -4;
+		if (gm_bank > 0) {
+			out.push_back (SmfEvent { 0, o++, { (uint8_t)(0xb0 | chn), 0x00, (uint8_t)(gm_bank & 0x7f) } });
+			out.push_back (SmfEvent { 0, o++, { (uint8_t)(0xb0 | chn), 0x20, 0x00 } });
+		}
+		out.push_back (SmfEvent { 0, o++, { (uint8_t)(0xc0 | chn), (uint8_t)gm_program } });
+	}
 	/* at the same tick: note-offs first, then in file order */
 	std::stable_sort (out.begin (), out.end (), [] (SmfEvent const& a, SmfEvent const& b) {
 		if (a.at != b.at) {
@@ -504,33 +584,37 @@ DrumStudio::convert_feel (string const& from, string const& to, Feel feel)
 }
 
 string
-DrumStudio::groove_file (string const& path, Feel feel)
+DrumStudio::groove_file (string const& path, Feel feel, int gm_program, int gm_bank)
 {
-	if (feel == FeelNormal) {
+	if (feel == FeelNormal && gm_program < 0) {
 		return path;
 	}
 	/* <cache>/drumstudio/<parent>-<name>-half.mid (the parent is the style folder) */
 	string const dir = Glib::build_filename (user_cache_directory (), X_("drumstudio"));
 	g_mkdir_with_parents (dir.c_str (), 0755);
-	string const name = Glib::path_get_basename (Glib::path_get_dirname (path)) + "-" + PBD::basename_nosuffix (path)
-	                    + (feel == FeelHalf ? "-half.mid" : "-double.mid");
+	string name = Glib::path_get_basename (Glib::path_get_dirname (path)) + "-" + PBD::basename_nosuffix (path)
+	              + (feel == FeelHalf ? "-half" : feel == FeelDouble ? "-double" : "");
+	if (gm_program >= 0) {
+		name += string_compose ("-gm%1-%2", gm_bank, gm_program);
+	}
+	name += ".mid";
 	string const out = Glib::build_filename (dir, name);
 	GStatBuf     a, b;
 	if (g_stat (out.c_str (), &b) == 0 && g_stat (path.c_str (), &a) == 0 && b.st_mtime >= a.st_mtime) {
 		return out;
 	}
-	return convert_feel (path, out, feel) ? out : string ();
+	return convert_feel (path, out, feel, gm_program, gm_bank) ? out : string ();
 }
 
 std::shared_ptr<Region>
-DrumStudio::groove_region (Session& session, string const& style_key, int part_index, int complexity, Feel feel)
+DrumStudio::groove_region (Session& session, string const& style_key, int part_index, int complexity, Feel feel, int gm_program)
 {
 	Style const* st = style (style_key);
 	if (!st || part_index < 0 || part_index >= (int)parts ().size ()) {
 		return std::shared_ptr<Region> ();
 	}
 	Groove const* g = st->groove (parts ()[part_index].key, complexity);
-	string const file = g ? groove_file (g->path, feel) : string ();
+	string const file = g ? groove_file (g->path, feel, gm_program) : string ();
 	if (file.empty () || !SMFSource::valid_midi_file (file)) {
 		return std::shared_ptr<Region> ();
 	}

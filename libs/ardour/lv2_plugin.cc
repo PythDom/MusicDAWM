@@ -1092,6 +1092,15 @@ LV2Plugin::~LV2Plugin ()
 {
 	DEBUG_TRACE(DEBUG::LV2, string_compose("%1 destroy\n", name()));
 
+	/* MusicDAWM: stop the worker threads before the plug-in is cleaned up:
+	 * a plug-in still working (Fluid Synth loading a soundfont when its
+	 * track is removed) would otherwise run on freed memory. Deleting a
+	 * worker waits for the work in progress. */
+	delete _worker;
+	_worker = 0;
+	delete _state_worker;
+	_state_worker = 0;
+
 	deactivate();
 	cleanup();
 
@@ -1122,8 +1131,6 @@ LV2Plugin::~LV2Plugin ()
 
 	delete _to_ui;
 	delete _from_ui;
-	delete _worker;
-	delete _state_worker;
 
 	if (_atom_ev_buffers) {
 		LV2_Evbuf**  b = _atom_ev_buffers;

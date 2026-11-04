@@ -68,7 +68,8 @@ jobs:
           sudo apt-get install -y -qq python3-mido
           python3 tools/drumstudio/test_grooves.py
           export TOP="$PWD"; . build/gtk2_ardour/ardev_common_waf.sh
-          build/session_utils/musicdawm9-drum_studio_test "$RUNNER_TEMP/drums" "$PWD/share/drumstudio/grooves"
+          bash ci/generaluser-gs-fetch.sh "$RUNNER_TEMP/soundfonts"
+          MUSICDAWM_SOUNDFONT="$RUNNER_TEMP/soundfonts/GeneralUser-GS.sf2" build/session_utils/musicdawm9-drum_studio_test "$RUNNER_TEMP/drums" "$PWD/share/drumstudio/grooves"
       - name: DAWproject import test
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |

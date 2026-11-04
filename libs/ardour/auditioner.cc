@@ -151,6 +151,9 @@ Auditioner::load_synth ()
 	unload_synth (true);
 
 	std::shared_ptr<Plugin> p = audition_synth_info->load (_session);
+	if (p && synth_setup) {
+		synth_setup (p);
+	}
 	if (p) {
 		asynth = std::shared_ptr<Processor> (new PluginInsert (_session, *this, p));
 	}

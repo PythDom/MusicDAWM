@@ -72,9 +72,20 @@ public:
 
 	/* the groove file for this feel: the library file itself for normal,
 	 * else a converted copy in the user's cache (made once); empty on error */
-	static std::string groove_file (std::string const& path, Feel);
-	/* the same conversion of a Standard MIDI File, for tests and Bass Studio */
-	static bool convert_feel (std::string const& from, std::string const& to, Feel);
+	static std::string groove_file (std::string const& path, Feel, int gm_program = -1, int gm_bank = 0);
+	/* the same conversion of a Standard MIDI File, for tests and Bass
+	 * Studio; with a program (0..127), a bank select (if not 0) and program
+	 * change go first, on the channel of the file's notes */
+	static bool convert_feel (std::string const& from, std::string const& to, Feel, int gm_program = -1, int gm_bank = 0);
+
+	/* a kit: an AVL kit plug-in, or a drum kit of the General MIDI
+	 * soundfont (gm_program >= 0, played by Fluid Synth) */
+	struct Kit {
+		std::string                 name;
+		std::shared_ptr<PluginInfo> synth;
+		int                         gm_program = -1;
+	};
+	static std::vector<Kit> kits ();
 
 	enum Quantize {
 		QuantizeBeat,
@@ -108,10 +119,14 @@ public:
 	 */
 	static std::shared_ptr<MidiTrack> create_drum_track (Session&, std::string const& style_key,
 	                                                     std::shared_ptr<PluginInfo> instrument = std::shared_ptr<PluginInfo> (), Feel = FeelNormal);
+	/* with a kit from kits () (a General MIDI kit gets the soundfont) */
+	static std::shared_ptr<MidiTrack> create_drum_track (Session&, std::string const& style_key, Kit const&, Feel = FeelNormal);
+	/* the General MIDI kit of a drum track, -1 if it uses a kit plug-in */
+	static int gm_program_of (std::shared_ptr<Route>);
 
 	/* A MIDI region of one groove (for previewing it through the
 	 * auditioner, before any drum track exists); null if missing. */
-	static std::shared_ptr<Region> groove_region (Session&, std::string const& style_key, int part_index, int complexity, Feel = FeelNormal);
+	static std::shared_ptr<Region> groove_region (Session&, std::string const& style_key, int part_index, int complexity, Feel = FeelNormal, int gm_program = -1);
 
 	/* Replace the grooves of an existing drum track with another style's. */
 	static int load_style (std::shared_ptr<MidiTrack>, std::string const& style_key, Feel = FeelNormal);
