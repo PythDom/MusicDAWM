@@ -1,6 +1,8 @@
 # MusicDAWM user guide
 
 MusicDAWM is a songwriting and arranging DAW based on [Ardour](https://ardour.org) 9.8.
+*En français : [mode d'emploi](mode-d-emploi.md), organisé par fonctionnalité.*
+
 This guide covers only what is **specific to MusicDAWM**. Everything that works as in Ardour (editing, mixing, automation, MIDI, export and so on) is described in the [Ardour manual](https://manual.ardour.org).
 
 *Status: 2026-11-01, MusicDAWM 0.2.0 (work packages WP1–WP7 and WP9, reference matching R1, vocal presets R5).*
