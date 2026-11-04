@@ -8,10 +8,14 @@
  */
 
 #include <algorithm>
+#include <cstdio>
+#include <cstring>
 
+#include <glib/gstdio.h>
 #include <glibmm/fileutils.h>
 #include <glibmm/miscutils.h>
 
+#include "pbd/basename.h"
 #include "pbd/error.h"
 #include "pbd/file_utils.h"
 #include "pbd/stateful_diff_command.h"
@@ -34,6 +38,8 @@
 #include "ardour/region_factory.h"
 #include "ardour/search_paths.h"
 #include "ardour/session.h"
+#include "ardour/smf_source.h"
+#include "ardour/source_factory.h"
 #include "ardour/triggerbox.h"
 
 #include "pbd/i18n.h"
@@ -232,7 +238,7 @@ configure_slot (std::shared_ptr<Trigger> t, int part_index)
 }
 
 int
-DrumStudio::load_style (std::shared_ptr<MidiTrack> track, string const& style_key)
+DrumStudio::load_style (std::shared_ptr<MidiTrack> track, string const& style_key, Feel feel)
 {
 	Style const* s = style (style_key);
 	if (!track || !s) {
@@ -263,7 +269,11 @@ DrumStudio::load_style (std::shared_ptr<MidiTrack> track, string const& style_ke
 			if (!g || !Glib::file_test (g->path, Glib::FILE_TEST_EXISTS)) {
 				continue;
 			}
-			tb->set_from_path (n, g->path);
+			string const file = groove_file (g->path, feel);
+			if (file.empty ()) {
+				continue;
+			}
+			tb->set_from_path (n, file);
 			std::shared_ptr<Trigger> t = tb->trigger (n);
 			if (t) {
 				configure_slot (t, p);
@@ -274,6 +284,7 @@ DrumStudio::load_style (std::shared_ptr<MidiTrack> track, string const& style_ke
 
 	XMLNode* node = track->extra_xml (drum_studio_node, true);
 	node->set_property (X_("style"), style_key);
+	node->set_property (X_("feel"), (int)feel);
 	node->set_property (X_("version"), 1);
 	return loaded == slot_count () ? 0 : -1;
 }
@@ -290,8 +301,262 @@ DrumStudio::play_timeline_too (std::shared_ptr<MidiTrack> track)
 	}
 }
 
+/* ---- MusicDAWM: half-time and double-time grooves ---- */
+
+namespace {
+
+struct SmfEvent {
+	uint64_t      at;    /* ticks */
+	int           order; /* within the file, to keep simultaneous events in order */
+	vector<uint8_t> bytes; /* status byte included (running status expanded) */
+};
+
+bool
+read_varlen (vector<uint8_t> const& d, size_t& i, size_t end, uint32_t& v)
+{
+	v = 0;
+	for (int k = 0; k < 4; ++k) {
+		if (i >= end) {
+			return false;
+		}
+		uint8_t const b = d[i++];
+		v               = (v << 7) | (b & 0x7f);
+		if (!(b & 0x80)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+void
+write_varlen (vector<uint8_t>& o, uint32_t v)
+{
+	uint8_t buf[5];
+	int     n = 0;
+	buf[n++]  = v & 0x7f;
+	while (v >>= 7) {
+		buf[n++] = 0x80 | (v & 0x7f);
+	}
+	while (n--) {
+		o.push_back (buf[n]);
+	}
+}
+
+bool
+is_note_off (vector<uint8_t> const& e)
+{
+	return e.size () == 3 && ((e[0] & 0xf0) == 0x80 || ((e[0] & 0xf0) == 0x90 && e[2] == 0));
+}
+
+} // namespace
+
+bool
+DrumStudio::convert_feel (string const& from, string const& to, Feel feel)
+{
+	FILE* f = g_fopen (from.c_str (), "rb");
+	if (!f) {
+		return false;
+	}
+	vector<uint8_t> d;
+	uint8_t         buf[4096];
+	size_t          got;
+	while ((got = fread (buf, 1, sizeof (buf), f)) > 0) {
+		d.insert (d.end (), buf, buf + got);
+	}
+	fclose (f);
+	/* one-track files (the library is format 0) with ticks per quarter */
+	if (d.size () < 22 || memcmp (d.data (), "MThd", 4) != 0 || (d[12] & 0x80)) {
+		return false;
+	}
+	uint16_t const ntrk = (d[10] << 8) | d[11];
+	size_t         i    = 8 + ((d[4] << 24) | (d[5] << 16) | (d[6] << 8) | d[7]);
+	if (ntrk != 1 || i + 8 > d.size () || memcmp (d.data () + i, "MTrk", 4) != 0) {
+		return false;
+	}
+	size_t const tlen = (d[i + 4] << 24) | (d[i + 5] << 16) | (d[i + 6] << 8) | d[i + 7];
+	size_t const end  = std::min (d.size (), i + 8 + tlen);
+	i += 8;
+
+	vector<SmfEvent> ev;
+	uint64_t         at = 0, eot = 0;
+	uint8_t          status = 0;
+	int              order  = 0;
+	while (i < end) {
+		uint32_t delta;
+		if (!read_varlen (d, i, end, delta) || i >= end) {
+			return false;
+		}
+		at += delta;
+		SmfEvent e;
+		e.at    = at;
+		e.order = order++;
+		uint8_t b = d[i];
+		if (b == 0xff) { /* meta */
+			if (i + 2 > end) {
+				return false;
+			}
+			uint8_t const type = d[i + 1];
+			size_t        j    = i + 2;
+			uint32_t      len;
+			if (!read_varlen (d, j, end, len) || j + len > end) {
+				return false;
+			}
+			if (type == 0x2f) {
+				eot = at;
+				break;
+			}
+			e.bytes.assign (d.begin () + i, d.begin () + j + len);
+			i = j + len;
+		} else if (b == 0xf0 || b == 0xf7) { /* sysex */
+			size_t   j = i + 1;
+			uint32_t len;
+			if (!read_varlen (d, j, end, len) || j + len > end) {
+				return false;
+			}
+			e.bytes.assign (d.begin () + i, d.begin () + j + len);
+			i = j + len;
+		} else {
+			if (b & 0x80) {
+				status = b;
+				++i;
+			}
+			if (!status) {
+				return false;
+			}
+			int const n = ((status & 0xf0) == 0xc0 || (status & 0xf0) == 0xd0) ? 1 : 2;
+			if (i + n > end) {
+				return false;
+			}
+			e.bytes.push_back (status);
+			e.bytes.insert (e.bytes.end (), d.begin () + i, d.begin () + i + n);
+			i += n;
+		}
+		ev.push_back (e);
+	}
+	if (eot == 0) {
+		eot = at;
+	}
+
+	vector<SmfEvent> out;
+	if (feel == FeelHalf) {
+		for (auto e : ev) {
+			e.at *= 2;
+			out.push_back (e);
+		}
+		eot *= 2;
+	} else if (feel == FeelDouble) {
+		/* twice as fast, twice: the groove keeps its length in bars */
+		uint64_t const half = eot / 2;
+		for (int rep = 0; rep < 2; ++rep) {
+			for (auto e : ev) {
+				if (rep == 1 && e.bytes[0] == 0xff) {
+					continue; /* meta events (names, tempo) once */
+				}
+				e.at    = e.at / 2 + rep * half;
+				e.order += rep * order;
+				out.push_back (e);
+			}
+		}
+	} else {
+		out = ev;
+	}
+	/* at the same tick: note-offs first, then in file order */
+	std::stable_sort (out.begin (), out.end (), [] (SmfEvent const& a, SmfEvent const& b) {
+		if (a.at != b.at) {
+			return a.at < b.at;
+		}
+		if (is_note_off (a.bytes) != is_note_off (b.bytes)) {
+			return is_note_off (a.bytes);
+		}
+		return a.order < b.order;
+	});
+
+	vector<uint8_t> trk;
+	uint64_t        last = 0;
+	for (auto const& e : out) {
+		write_varlen (trk, (uint32_t)(e.at - last));
+		last = e.at;
+		trk.insert (trk.end (), e.bytes.begin (), e.bytes.end ());
+	}
+	write_varlen (trk, (uint32_t)(eot > last ? eot - last : 0));
+	trk.push_back (0xff);
+	trk.push_back (0x2f);
+	trk.push_back (0x00);
+
+	vector<uint8_t> o (d.begin (), d.begin () + 14); /* the header as it was */
+	o.insert (o.end (), { 'M', 'T', 'r', 'k' });
+	uint32_t const n = trk.size ();
+	o.insert (o.end (), { (uint8_t)(n >> 24), (uint8_t)(n >> 16), (uint8_t)(n >> 8), (uint8_t)n });
+	o.insert (o.end (), trk.begin (), trk.end ());
+
+	string const tmp = to + ".part";
+	FILE*        w   = g_fopen (tmp.c_str (), "wb");
+	if (!w) {
+		return false;
+	}
+	bool const ok = fwrite (o.data (), 1, o.size (), w) == o.size ();
+	fclose (w);
+	if (!ok || g_rename (tmp.c_str (), to.c_str ()) != 0) {
+		g_unlink (tmp.c_str ());
+		return false;
+	}
+	return true;
+}
+
+string
+DrumStudio::groove_file (string const& path, Feel feel)
+{
+	if (feel == FeelNormal) {
+		return path;
+	}
+	/* <cache>/drumstudio/<parent>-<name>-half.mid (the parent is the style folder) */
+	string const dir = Glib::build_filename (user_cache_directory (), X_("drumstudio"));
+	g_mkdir_with_parents (dir.c_str (), 0755);
+	string const name = Glib::path_get_basename (Glib::path_get_dirname (path)) + "-" + PBD::basename_nosuffix (path)
+	                    + (feel == FeelHalf ? "-half.mid" : "-double.mid");
+	string const out = Glib::build_filename (dir, name);
+	GStatBuf     a, b;
+	if (g_stat (out.c_str (), &b) == 0 && g_stat (path.c_str (), &a) == 0 && b.st_mtime >= a.st_mtime) {
+		return out;
+	}
+	return convert_feel (path, out, feel) ? out : string ();
+}
+
+std::shared_ptr<Region>
+DrumStudio::groove_region (Session& session, string const& style_key, int part_index, int complexity, Feel feel)
+{
+	Style const* st = style (style_key);
+	if (!st || part_index < 0 || part_index >= (int)parts ().size ()) {
+		return std::shared_ptr<Region> ();
+	}
+	Groove const* g = st->groove (parts ()[part_index].key, complexity);
+	string const file = g ? groove_file (g->path, feel) : string ();
+	if (file.empty () || !SMFSource::valid_midi_file (file)) {
+		return std::shared_ptr<Region> ();
+	}
+	try {
+		std::shared_ptr<SMFSource> ms = std::dynamic_pointer_cast<SMFSource> (
+		    SourceFactory::createExternal (DataType::MIDI, session, file, 0, Source::Flag (0), false));
+		if (!ms) {
+			return std::shared_ptr<Region> ();
+		}
+		PBD::PropertyList plist;
+		plist.add (Properties::start, timepos_t (Temporal::Beats ()));
+		plist.add (Properties::length, ms->length ());
+		plist.add (Properties::name, string_compose ("%1 %2 %3", st->name, parts ()[part_index].name, complexity));
+		plist.add (Properties::layer, 0);
+		std::shared_ptr<Region> r = RegionFactory::create (std::dynamic_pointer_cast<Source> (ms), plist, false);
+		if (r) {
+			r->set_position (timepos_t (Temporal::Beats ()));
+		}
+		return r;
+	} catch (...) {
+		return std::shared_ptr<Region> ();
+	}
+}
+
 std::shared_ptr<MidiTrack>
-DrumStudio::create_drum_track (Session& session, string const& style_key, std::shared_ptr<PluginInfo> instrument)
+DrumStudio::create_drum_track (Session& session, string const& style_key, std::shared_ptr<PluginInfo> instrument, Feel feel)
 {
 	if (!style (style_key)) {
 		return std::shared_ptr<MidiTrack> ();
@@ -315,7 +580,7 @@ DrumStudio::create_drum_track (Session& session, string const& style_key, std::s
 	play_timeline_too (track);
 	/* the AVL kits peak above 0 dBFS on accented crashes at unity gain */
 	track->gain_control ()->set_value (dB_to_coefficient (-6.f), PBD::Controllable::NoGroup);
-	if (load_style (track, style_key)) {
+	if (load_style (track, style_key, feel)) {
 		warning << string_compose (_("Drum Studio: not all grooves of '%1' could be loaded"), style_key) << endmsg;
 	}
 	return track;
@@ -338,6 +603,18 @@ DrumStudio::style_of (std::shared_ptr<Route> r)
 		}
 	}
 	return key;
+}
+
+DrumStudio::Feel
+DrumStudio::feel_of (std::shared_ptr<Route> r)
+{
+	int f = FeelNormal;
+	if (r) {
+		if (XMLNode* node = r->extra_xml (drum_studio_node)) {
+			node->get_property (X_("feel"), f);
+		}
+	}
+	return (f == FeelHalf || f == FeelDouble) ? (Feel)f : FeelNormal;
 }
 
 std::shared_ptr<MidiTrack>
@@ -605,8 +882,15 @@ DrumPerformer::tick ()
 			int p, c;
 			DrumStudio::cell_of_slot (_playing, p, c);
 			if (DrumStudio::part_is_fill (p) && _before_fill >= 0) {
-				/* a fill lasts one bar from where it started, then the previous part comes back */
-				_return_at = timepos_t (tmap->quarters_at (tmap->bbt_walk (tmap->bbt_at (started), BBT_Offset (1, 0, 0))));
+				/* a fill lasts as long as its groove (one bar; two in
+				 * half-time), then the previous part comes back */
+				std::shared_ptr<MidiTrack> track = DrumStudio::find_drum_track (_session);
+				TriggerPtr                 ft    = (track && track->triggerbox ()) ? track->triggerbox ()->trigger (_playing) : TriggerPtr ();
+				if (ft && ft->the_region ()) {
+					_return_at = timepos_t (started.beats () + ft->the_region ()->length ().beats ());
+				} else {
+					_return_at = timepos_t (tmap->quarters_at (tmap->bbt_walk (tmap->bbt_at (started), BBT_Offset (1, 0, 0))));
+				}
 				schedule (_before_fill, _return_at);
 				_before_fill = -1;
 			}

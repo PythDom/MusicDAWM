@@ -53,6 +53,7 @@ protected:
 private:
 	void set_style (std::string const& key);
 	void set_kit (int);
+	void set_feel (ARDOUR::DrumStudio::Feel);
 	void set_quantize (ARDOUR::DrumStudio::Quantize);
 	void create_or_load ();
 	void match_meter ();
@@ -67,12 +68,16 @@ private:
 	void transport_changed ();
 	void located ();
 	bool handle_key (GdkEventKey*);
+	void preview (int part, int complexity);
+	void stop_preview ();
+	void audition_active (bool);
 
 	std::shared_ptr<ARDOUR::MidiTrack> drum_track () const;
 	int playing_slot () const; /* what the drum track's trigger box plays, or -1 */
 
 	ArdourWidgets::ArdourDropdown _style;
 	ArdourWidgets::ArdourDropdown _kit;
+	ArdourWidgets::ArdourDropdown _feel_dd;
 	ArdourWidgets::ArdourDropdown _quantize;
 	ArdourWidgets::ArdourButton   _create;
 	ArdourWidgets::ArdourButton   _keys;
@@ -92,6 +97,8 @@ private:
 	int         _complexity;  /* last requested complexity, for the part keys */
 	bool        _keys_on;
 	int         _shown_playing; /* slot shown as playing */
+	int         _preview_slot;  /* slot being previewed (no drum track yet), or -1 */
+	ARDOUR::DrumStudio::Feel _feel;
 
 	ARDOUR::DrumStudio::Quantize           _q;
 	std::unique_ptr<ARDOUR::DrumPerformer> _performer;

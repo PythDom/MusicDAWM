@@ -11,7 +11,9 @@
 
 #include "pbd/compose.h"
 
+#include "ardour/auditioner.h"
 #include "ardour/location.h"
+#include "ardour/region.h"
 #include "ardour/midi_track.h"
 #include "ardour/plugin.h"
 #include "ardour/session.h"
@@ -75,6 +77,8 @@ DrumStudioPanel::DrumStudioPanel ()
 	, _complexity (2)
 	, _keys_on (false)
 	, _shown_playing (-1)
+	, _preview_slot (-1)
+	, _feel (DrumStudio::FeelNormal)
 	, _q (DrumStudio::QuantizeBar)
 {
 	_instance = this;
@@ -91,6 +95,11 @@ DrumStudioPanel::DrumStudioPanel ()
 		_kit.add_menu_elem (MenuElem (_kits[i]->name, sigc::bind (sigc::mem_fun (*this, &DrumStudioPanel::set_kit), (int)i)));
 	}
 	_kit.add_menu_elem (MenuElem (_("No instrument (choose your own later)"), sigc::bind (sigc::mem_fun (*this, &DrumStudioPanel::set_kit), -1)));
+
+	_feel_dd.add_menu_elem (MenuElem (_("Normal"), sigc::bind (sigc::mem_fun (*this, &DrumStudioPanel::set_feel), DrumStudio::FeelNormal)));
+	_feel_dd.add_menu_elem (MenuElem (_("Half-time"), sigc::bind (sigc::mem_fun (*this, &DrumStudioPanel::set_feel), DrumStudio::FeelHalf)));
+	_feel_dd.add_menu_elem (MenuElem (_("Double-time"), sigc::bind (sigc::mem_fun (*this, &DrumStudioPanel::set_feel), DrumStudio::FeelDouble)));
+	set_tooltip (_feel_dd, _("The grooves against the song's tempo: normal, half-time (twice as slow, a one-bar groove takes two bars) or double-time (twice as fast)"));
 
 	_quantize.add_menu_elem (MenuElem (_("Next beat"), sigc::bind (sigc::mem_fun (*this, &DrumStudioPanel::set_quantize), DrumStudio::QuantizeBeat)));
 	_quantize.add_menu_elem (MenuElem (_("Next bar"), sigc::bind (sigc::mem_fun (*this, &DrumStudioPanel::set_quantize), DrumStudio::QuantizeBar)));
@@ -132,7 +141,7 @@ DrumStudioPanel::DrumStudioPanel ()
 	}
 
 	/* narrow layout for the sidebar */
-	Table* top = manage (new Table (2, 2));
+	Table* top = manage (new Table (3, 2));
 	top->set_spacings (4);
 	Label* sl = manage (new Label (_("Style:")));
 	Label* kl = manage (new Label (_("Kit:")));
@@ -142,6 +151,10 @@ DrumStudioPanel::DrumStudioPanel ()
 	top->attach (_style, 1, 2, 0, 1, FILL | EXPAND, SHRINK);
 	top->attach (*kl, 0, 1, 1, 2, FILL, SHRINK);
 	top->attach (_kit, 1, 2, 1, 2, FILL | EXPAND, SHRINK);
+	Label* fl = manage (new Label (_("Feel:")));
+	fl->set_alignment (0, 0.5);
+	top->attach (*fl, 0, 1, 2, 3, FILL, SHRINK);
+	top->attach (_feel_dd, 1, 2, 2, 3, FILL | EXPAND, SHRINK);
 
 	HBox* when = manage (new HBox (false, 4));
 	when->pack_start (*manage (new Label (_("Switch at:"))), false, false);
@@ -155,8 +168,8 @@ DrumStudioPanel::DrumStudioPanel ()
 	perform->attach (_flatten, 1, 2, 1, 2);
 	perform->attach (_follow, 0, 1, 2, 3);
 
-	Label* help = manage (new Label (_("Click a cell to start or switch. With Keys on: I V P C B F E pick the part, 1-4 the complexity. "
-	                                   "A fill returns to the previous part after one bar.")));
+	Label* help = manage (new Label (_("Before the drum track exists, click a cell to listen to it with the chosen kit. Then click a cell to start or switch. With Keys on: I V P C B F E pick the part, 1-4 the complexity. "
+	                                   "A fill returns to the previous part when it ends. Feel plays the grooves at half or double speed against the song.")));
 	help->set_line_wrap (true);
 	help->set_alignment (0, 0.5);
 	help->set_size_request (200, -1); /* wrap instead of widening the sidebar */
@@ -174,7 +187,7 @@ DrumStudioPanel::DrumStudioPanel ()
 	pack_start (_status, false, false);
 	show_all ();
 
-	for (auto* w : std::vector<ArdourButton*> { &_style, &_kit, &_quantize, &_create, &_keys, &_record, &_stop, &_flatten, &_follow }) {
+	for (auto* w : std::vector<ArdourButton*> { &_style, &_kit, &_feel_dd, &_quantize, &_create, &_keys, &_record, &_stop, &_flatten, &_follow }) {
 		w->set_can_focus (false);
 	}
 
@@ -185,6 +198,20 @@ DrumStudioPanel::DrumStudioPanel ()
 	}
 	set_kit (_kits.empty () ? -1 : 0);
 	set_quantize (DrumStudio::QuantizeBar);
+	set_feel (DrumStudio::FeelNormal);
+	update_buttons ();
+}
+
+void
+DrumStudioPanel::set_feel (DrumStudio::Feel f)
+{
+	_feel = f;
+	_feel_dd.set_text (f == DrumStudio::FeelHalf ? _("Half-time") : f == DrumStudio::FeelDouble ? _("Double-time") : _("Normal"));
+	if (_preview_slot >= 0) {
+		int p, c;
+		DrumStudio::cell_of_slot (_preview_slot, p, c);
+		preview (p, c);
+	}
 	update_buttons ();
 }
 
@@ -213,10 +240,13 @@ DrumStudioPanel::set_session (Session* s)
 	_timer = Timers::super_rapid_connect (sigc::mem_fun (*this, &DrumStudioPanel::tick));
 	/* Rec Cues disarms itself when the transport stops */
 	TriggerBox::CueRecordingChanged.connect (_session_connections, invalidator (*this), std::bind (&DrumStudioPanel::update_buttons, this), gui_context ());
+	_session->AuditionActive.connect (_session_connections, invalidator (*this), std::bind (&DrumStudioPanel::audition_active, this, _1), gui_context ());
+	_preview_slot = -1;
 
 	std::shared_ptr<MidiTrack> t = drum_track ();
 	if (t && DrumStudio::style (DrumStudio::style_of (t))) {
 		set_style (DrumStudio::style_of (t));
+		set_feel (DrumStudio::feel_of (t));
 	}
 	update_buttons ();
 }
@@ -227,6 +257,7 @@ DrumStudioPanel::session_going_away ()
 	_timer.disconnect ();
 	_session_connections.drop_connections ();
 	_performer.reset ();
+	_preview_slot = -1;
 	SessionHandlePtr::session_going_away ();
 	update_buttons ();
 }
@@ -257,6 +288,12 @@ DrumStudioPanel::set_style (std::string const& key)
 	}
 	_style_key = key;
 	_style.set_text (st->name);
+	if (_preview_slot >= 0) {
+		/* keep listening, in the new style */
+		int p, c;
+		DrumStudio::cell_of_slot (_preview_slot, p, c);
+		preview (p, c);
+	}
 	update_buttons ();
 }
 
@@ -265,6 +302,64 @@ DrumStudioPanel::set_kit (int i)
 {
 	_kit_index = (i >= 0 && i < (int)_kits.size ()) ? i : -1;
 	_kit.set_text (_kit_index >= 0 ? _kits[_kit_index]->name : _("No instrument"));
+	if (_preview_slot >= 0) {
+		int p, c;
+		DrumStudio::cell_of_slot (_preview_slot, p, c);
+		preview (p, c);
+	}
+}
+
+/* MusicDAWM: listen to a groove before the drum track exists: the
+ * auditioner plays it in a loop through the chosen kit, at the song's tempo */
+void
+DrumStudioPanel::preview (int part, int complexity)
+{
+	if (!_session || !_session->the_auditioner ()) {
+		return;
+	}
+	if (_kit_index < 0) {
+		_status.set_text (_("Choose a kit to listen to the grooves."));
+		return;
+	}
+	std::shared_ptr<Region> r = DrumStudio::groove_region (*_session, _style_key, part, complexity, _feel);
+	if (!r) {
+		_status.set_text (_("This groove is missing from the library."));
+		return;
+	}
+	if (_session->transport_rolling ()) {
+		_session->request_stop ();
+	}
+	_session->the_auditioner ()->set_audition_synth_info (_kits[_kit_index]);
+	_preview_slot = DrumStudio::slot (part, complexity);
+	_part         = part;
+	_complexity   = complexity;
+	_session->audition_region (r, true);
+	DrumStudio::Style const* st = DrumStudio::style (_style_key);
+	_status.set_text (string_compose (_("Listening to %1, %2 %3 (%4). Click another cell, Stop, or Create Drum Track to use this style."),
+	                                  st ? st->name : _style_key, DrumStudio::parts ()[part].name, complexity, _kits[_kit_index]->name));
+	update_buttons ();
+}
+
+void
+DrumStudioPanel::stop_preview ()
+{
+	if (_preview_slot < 0) {
+		return;
+	}
+	_preview_slot = -1;
+	if (_session) {
+		_session->cancel_audition ();
+	}
+	update_buttons ();
+}
+
+void
+DrumStudioPanel::audition_active (bool yn)
+{
+	if (!yn && _preview_slot >= 0) {
+		_preview_slot = -1;
+		update_buttons ();
+	}
 }
 
 void
@@ -304,17 +399,18 @@ DrumStudioPanel::create_or_load ()
 	}
 	std::shared_ptr<MidiTrack> t = drum_track ();
 	if (t) {
-		if (DrumStudio::style_of (t) == _style_key) {
+		if (DrumStudio::style_of (t) == _style_key && DrumStudio::feel_of (t) == _feel) {
 			return;
 		}
 		match_meter ();
-		if (DrumStudio::load_style (t, _style_key)) {
+		if (DrumStudio::load_style (t, _style_key, _feel)) {
 			_status.set_text (_("Some grooves of this style could not be loaded."));
 		}
 	} else {
+		stop_preview ();
 		match_meter ();
 		std::shared_ptr<PluginInfo> kit = _kit_index >= 0 ? _kits[_kit_index] : std::shared_ptr<PluginInfo> ();
-		t = DrumStudio::create_drum_track (*_session, _style_key, kit);
+		t = DrumStudio::create_drum_track (*_session, _style_key, kit, _feel);
 		if (!t) {
 			ArdourMessageDialog msg (_("The drum track could not be created."));
 			msg.run ();
@@ -331,7 +427,11 @@ void
 DrumStudioPanel::cell_clicked (int part, int complexity)
 {
 	std::shared_ptr<MidiTrack> t = drum_track ();
-	if (!_performer || !t) {
+	if (!t) {
+		preview (part, complexity);
+		return;
+	}
+	if (!_performer) {
 		return;
 	}
 	if (t->triggerbox () && t->triggerbox ()->trigger (0) && t->triggerbox ()->trigger (0)->cue_isolated ()) {
@@ -358,6 +458,10 @@ void
 DrumStudioPanel::stop ()
 {
 	if (!_session) {
+		return;
+	}
+	if (_preview_slot >= 0) {
+		stop_preview ();
 		return;
 	}
 	if (_performer) {
@@ -457,7 +561,7 @@ DrumStudioPanel::update_buttons ()
 	std::shared_ptr<MidiTrack> t = drum_track ();
 	bool const has = (bool) t;
 
-	if (has && DrumStudio::style_of (t) != _style_key) {
+	if (has && (DrumStudio::style_of (t) != _style_key || DrumStudio::feel_of (t) != _feel)) {
 		_create.set_text (_("Load Style"));
 		_create.set_sensitive (true);
 	} else {
@@ -470,15 +574,17 @@ DrumStudioPanel::update_buttons ()
 	int const playing = _shown_playing = playing_slot ();
 	int const pending = _performer ? _performer->pending_slot () : -1;
 	for (int s = 0; s < (int)_cells.size (); ++s) {
-		_cells[s]->set_sensitive (has);
-		_cells[s]->set_active_state (s == playing ? Gtkmm2ext::ExplicitActive : s == pending ? Gtkmm2ext::ImplicitActive : Gtkmm2ext::Off);
+		/* without a drum track, the cells preview the grooves */
+		_cells[s]->set_sensitive (has || (_session && _kit_index >= 0));
+		int const on = has ? playing : _preview_slot;
+		_cells[s]->set_active_state (s == on ? Gtkmm2ext::ExplicitActive : (has && s == pending) ? Gtkmm2ext::ImplicitActive : Gtkmm2ext::Off);
 	}
 
 	_keys.set_sensitive (has);
 	_keys.set_active (_keys_on);
 	_record.set_sensitive (has);
 	_record.set_active (_performer && _performer->recording ());
-	_stop.set_sensitive (has);
+	_stop.set_sensitive (has || _preview_slot >= 0);
 	_flatten.set_sensitive (has);
 	bool const follows = has && t->triggerbox () && t->triggerbox ()->trigger (0) && !t->triggerbox ()->trigger (0)->cue_isolated ();
 	_follow.set_sensitive (has);
@@ -486,9 +592,9 @@ DrumStudioPanel::update_buttons ()
 
 	if (!_session) {
 		_status.set_text (_("Open a session to use Drum Studio."));
-	} else if (!has) {
-		_status.set_text (_("Pick a style and create the drum track."));
-	} else if (_status.get_text ().empty () || _status.get_text () == _("Pick a style and create the drum track.") || _status.get_text () == _("Open a session to use Drum Studio.")) {
+	} else if (!has && _preview_slot < 0) {
+		_status.set_text (_("Pick a style and a kit, click a cell to listen, then create the drum track."));
+	} else if (_status.get_text ().empty () || _status.get_text () == _("Pick a style and a kit, click a cell to listen, then create the drum track.") || _status.get_text () == _("Open a session to use Drum Studio.")) {
 		_status.set_text (string_compose (_("Drum track: %1"), t->name ()));
 	}
 }

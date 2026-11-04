@@ -69,3 +69,10 @@ Both workflows green on `c01ff01b44`:
 | | Estimate (brief) | Actual |
 |---|---|---|
 | WP3 | 4–6 weeks | about one day of agent time, plus CI runs |
+
+## Update 2026-11-04: listening before creating, and the feel (D-056)
+
+- Before the drum track exists, the cells preview their groove (loop, chosen kit and feel, at the song's tempo) through the auditioner; Stop ends it, creating the track ends it.
+- **Feel**: Normal / Half-time / Double-time, on the drum track (`DrumStudio::Feel`, `convert_feel`, `groove_file`); fills return when their groove ends.
+- `drum_studio_test`: rock verse 2 is 8 beats and 26 notes; half-time 16 beats and the same 26 notes, every kick twice as late; double-time 8 beats and 52 notes; the preview region is made in each feel.
+- In the program (Xvfb): the cells are active before the track exists, a click previews (cell lit, status, Stop active), changing the feel restarts it, Stop ends it, the track is created in half-time.

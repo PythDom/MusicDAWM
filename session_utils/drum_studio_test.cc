@@ -371,6 +371,42 @@ main (int argc, char* argv[])
 		check (count_notes (second, 36) == kicks_before && kicks_before > 0, "deleting a kick in one region leaves the other regions alone");
 	}
 
+	/* 6b. feel: half-time and double-time grooves (also what the preview plays) */
+	printf ("-- feel\n");
+	{
+		int const vp = DrumStudio::part_index ("verse");
+		std::shared_ptr<MidiRegion> n = std::dynamic_pointer_cast<MidiRegion> (DrumStudio::groove_region (*s, "rock", vp, 2, DrumStudio::FeelNormal));
+		std::shared_ptr<MidiRegion> h = std::dynamic_pointer_cast<MidiRegion> (DrumStudio::groove_region (*s, "rock", vp, 2, DrumStudio::FeelHalf));
+		std::shared_ptr<MidiRegion> d = std::dynamic_pointer_cast<MidiRegion> (DrumStudio::groove_region (*s, "rock", vp, 2, DrumStudio::FeelDouble));
+		check (n && h && d, "a groove as a region in each feel (for the preview)");
+		if (n && h && d) {
+			Beats const ln = n->length ().beats (), lh = h->length ().beats (), ld = d->length ().beats ();
+			size_t const nn = n->model ()->notes ().size (), nh = h->model ()->notes ().size (), nd = d->model ()->notes ().size ();
+			printf ("   normal %.2f beats %zu notes, half-time %.2f beats %zu notes, double-time %.2f beats %zu notes\n",
+			        ln.to_ticks () / 1920.0, nn, lh.to_ticks () / 1920.0, nh, ld.to_ticks () / 1920.0, nd);
+			check (lh == ln * 2 && nh == nn, "half-time: twice as long, the same notes");
+			check (ld == ln && nd == 2 * nn, "double-time: the same length, the groove twice");
+			/* the second kick of half-time is where the first ones were, twice as late */
+			vector<double> kn, kh;
+			for (auto const& nt : n->model ()->notes ()) {
+				if (nt->note () == 36) {
+					kn.push_back (nt->time ().to_ticks ());
+				}
+			}
+			for (auto const& nt : h->model ()->notes ()) {
+				if (nt->note () == 36) {
+					kh.push_back (nt->time ().to_ticks ());
+				}
+			}
+			bool same = kn.size () == kh.size ();
+			for (size_t k = 0; same && k < kn.size (); ++k) {
+				same = std::fabs (kh[k] - 2 * kn[k]) < 1e-6;
+			}
+			check (same, "half-time: every kick twice as late");
+		}
+		check (DrumStudio::feel_of (track) == DrumStudio::FeelNormal, "the drum track is in the normal feel");
+	}
+
 	/* 7. save; a second run of this program reopens the session. (Loading a
 	 * second session in the same process can hang the dummy backend's
 	 * threads at teardown; see reports/WP3.md.) */

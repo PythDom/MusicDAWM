@@ -31,6 +31,7 @@
 namespace ARDOUR {
 
 class MidiTrack;
+class Region;
 class Route;
 class Session;
 
@@ -59,6 +60,21 @@ public:
 		std::string key;  /* "intro", "verse", ... */
 		std::string name; /* "Intro", "Verse", ... */
 	};
+
+	/* MusicDAWM: the grooves against the song's tempo. Half-time spreads a
+	 * groove over twice as many bars (a one-bar groove takes two);
+	 * double-time plays it twice as fast, twice in its bars. */
+	enum Feel {
+		FeelNormal = 0,
+		FeelHalf,
+		FeelDouble
+	};
+
+	/* the groove file for this feel: the library file itself for normal,
+	 * else a converted copy in the user's cache (made once); empty on error */
+	static std::string groove_file (std::string const& path, Feel);
+	/* the same conversion of a Standard MIDI File, for tests and Bass Studio */
+	static bool convert_feel (std::string const& from, std::string const& to, Feel);
 
 	enum Quantize {
 		QuantizeBeat,
@@ -91,13 +107,18 @@ public:
 	 * The track is hidden from the Cue page; Drum Studio is its UI.
 	 */
 	static std::shared_ptr<MidiTrack> create_drum_track (Session&, std::string const& style_key,
-	                                                     std::shared_ptr<PluginInfo> instrument = std::shared_ptr<PluginInfo> ());
+	                                                     std::shared_ptr<PluginInfo> instrument = std::shared_ptr<PluginInfo> (), Feel = FeelNormal);
+
+	/* A MIDI region of one groove (for previewing it through the
+	 * auditioner, before any drum track exists); null if missing. */
+	static std::shared_ptr<Region> groove_region (Session&, std::string const& style_key, int part_index, int complexity, Feel = FeelNormal);
 
 	/* Replace the grooves of an existing drum track with another style's. */
-	static int load_style (std::shared_ptr<MidiTrack>, std::string const& style_key);
+	static int load_style (std::shared_ptr<MidiTrack>, std::string const& style_key, Feel = FeelNormal);
 
 	static bool        is_drum_track (std::shared_ptr<Route>);
 	static std::string style_of (std::shared_ptr<Route>);
+	static Feel        feel_of (std::shared_ptr<Route>);
 	static std::shared_ptr<MidiTrack> find_drum_track (Session&);
 
 	/* The next switching point after `pos` for the given quantization. Bars

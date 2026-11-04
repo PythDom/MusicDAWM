@@ -993,7 +993,7 @@ public:
 
 	std::shared_ptr<Auditioner> the_auditioner() { return auditioner; }
 	void audition_playlist ();
-	void audition_region (std::shared_ptr<Region>);
+	void audition_region (std::shared_ptr<Region>, bool loop = false); /* MusicDAWM: loop (Drum Studio preview) */
 	void cancel_audition ();
 	bool is_auditioning () const;
 
@@ -2145,6 +2145,7 @@ private:
 	void set_audition (std::shared_ptr<Region>);
 	void non_realtime_set_audition ();
 	std::shared_ptr<Region> pending_audition_region;
+	std::atomic<bool>       pending_audition_loop {false};
 
 	/* EXPORT */
 

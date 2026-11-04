@@ -5914,14 +5914,15 @@ void
 Session::non_realtime_set_audition ()
 {
 	assert (pending_audition_region);
-	auditioner->audition_region (pending_audition_region);
+	auditioner->audition_region (pending_audition_region, pending_audition_loop.load ());
 	pending_audition_region.reset ();
 	AuditionActive (true); /* EMIT SIGNAL */
 }
 
 void
-Session::audition_region (std::shared_ptr<Region> r)
+Session::audition_region (std::shared_ptr<Region> r, bool loop)
 {
+	pending_audition_loop.store (loop);
 	SessionEvent* ev = new SessionEvent (SessionEvent::Audition, SessionEvent::Add, SessionEvent::Immediate, 0, 0.0);
 	ev->region = r;
 	queue_event (ev);

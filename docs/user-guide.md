@@ -84,16 +84,18 @@ Drum Studio gives a song a drummer: pick a style, then play the song parts live 
 
 1. **Style:** Rock, Pop, Ballad, Blues shuffle, Funk, Country, Reggae, Bossa nova, Jazz swing, Half-time, 6/8 or Punk.
 2. **Kit:** one of the bundled AVL acoustic kits (Black Pearl, Red Zeppelin, Blonde Bop, Buskman's Holiday), or **No instrument** to use your own drum plugin, such as MT Power DrumKit. The grooves are plain General MIDI drum notes, so any GM drum instrument plays them.
-3. **Create Drum Track.** You get a MIDI track called *Drums* with the kit and all 28 grooves loaded: 7 parts (intro, verse, pre-chorus, chorus, bridge, fill, ending) × 4 complexities (1 = simple, 4 = busy). If the style is in 6/8 and the song has a single time signature, the song is switched to 6/8 (undo reverts it). The style's suggested tempo is shown; your song's tempo is not changed.
+3. **Feel:** *Normal*, *Half-time* (the grooves twice as slow against the song: a one-bar groove takes two bars) or *Double-time* (twice as fast). Useful when the song's tempo map runs at double or half the speed you feel.
+4. **Listen first:** before the drum track exists, **click a cell** to hear that groove with the chosen kit and feel, in a loop, at your song's tempo (the transport stays stopped). Click other cells, change the style, kit or feel while it plays, and **Stop** to end it.
+5. **Create Drum Track.** You get a MIDI track called *Drums* with the kit and all 28 grooves loaded: 7 parts (intro, verse, pre-chorus, chorus, bridge, fill, ending) × 4 complexities (1 = simple, 4 = busy). If the style is in 6/8 and the song has a single time signature, the song is switched to 6/8 (undo reverts it). The style's suggested tempo is shown; your song's tempo is not changed.
 
-To change style later, pick another style and press **Load Style**: the drum track gets the new grooves.
+To change style or feel later, pick another one and press **Load Style**: the drum track gets the new grooves.
 
 ### Perform
 
 - **Click a cell** to start or switch. With the transport stopped, a click starts playback at the playhead with that groove, so you can audition each cell at your song's tempo.
 - While playing, a click switches at the next **Switch at** point: *Next beat*, *Next bar* (default) or *Next 2 bars* (two-bar phrases start on odd bars). The waiting cell is lit; the playing cell is red.
 - **Keys:** turn on **Keys** to play with the keyboard. **I** intro, **V** verse, **P** pre-chorus, **C** chorus, **B** bridge, **F** fill, **E** ending; **1–4** change the complexity of the current part. A part key keeps the last complexity. While Keys is on these keys switch the drums instead of doing their usual Editor shortcuts. Turn it off, or switch the sidebar to another page, to get the shortcuts back.
-- A **fill** plays for one bar, then the part you were in comes back by itself. The **ending** plays once.
+- A **fill** plays once (one bar; two in half-time), then the part you were in comes back by itself. The **ending** plays once.
 - **Stop** silences the drums at once; the transport keeps rolling.
 
 ### Record, replay, adjust
