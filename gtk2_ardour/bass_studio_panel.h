@@ -65,4 +65,7 @@ private:
 	void options_changed ();
 	std::string chart () const;
 	void        update_buttons ();
+	bool        chords_focus_in (GdkEventFocus*);
+	bool        chords_focus_out (GdkEventFocus*);
+	bool        _chords_has_focus;
 };

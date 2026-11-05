@@ -17,6 +17,8 @@
 #include "ardour/region.h"
 #include "ardour/session.h"
 
+#include "gtkmm2ext/keyboard.h"
+
 #include "widgets/tooltips.h"
 
 #include "bass_studio_panel.h"
@@ -37,10 +39,15 @@ BassStudioPanel::BassStudioPanel ()
 	, _listen (_("Listen"), ArdourButton::Element (ArdourButton::default_elements | ArdourButton::Indicator))
 	, _make (_("Make Bass Line"))
 	, _previewing (false)
+	, _chords_has_focus (false)
 {
 	_chords.set_wrap_mode (WRAP_WORD);
 	_chords.get_buffer ()->set_text ("C G Am F");
 	_chords_scroll.add (_chords);
+	/* A TextView is not a Gtk::Entry: without this the editor's unmodified
+	 * shortcuts (Delete, BackSpace, letters...) would eat the keys typed here. */
+	_chords.signal_focus_in_event ().connect (sigc::mem_fun (*this, &BassStudioPanel::chords_focus_in), false);
+	_chords.signal_focus_out_event ().connect (sigc::mem_fun (*this, &BassStudioPanel::chords_focus_out), false);
 	_chords_scroll.set_policy (POLICY_NEVER, POLICY_AUTOMATIC);
 	_chords_scroll.set_shadow_type (SHADOW_IN);
 	_chords_scroll.set_size_request (200, 90);
@@ -142,6 +149,27 @@ BassStudioPanel::BassStudioPanel ()
 
 BassStudioPanel::~BassStudioPanel ()
 {
+	if (_chords_has_focus) {
+		Gtkmm2ext::Keyboard::magic_widget_drop_focus ();
+	}
+}
+
+bool
+BassStudioPanel::chords_focus_in (GdkEventFocus*)
+{
+	_chords_has_focus = true;
+	Gtkmm2ext::Keyboard::magic_widget_grab_focus ();
+	return false;
+}
+
+bool
+BassStudioPanel::chords_focus_out (GdkEventFocus*)
+{
+	if (_chords_has_focus) {
+		_chords_has_focus = false;
+		Gtkmm2ext::Keyboard::magic_widget_drop_focus ();
+	}
+	return false;
 }
 
 void
